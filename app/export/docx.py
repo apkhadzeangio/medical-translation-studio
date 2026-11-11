@@ -188,6 +188,20 @@ def _write_figure(doc, session: Session, item: Item, storage: Storage | None, fo
         natural = Emu(int(asset.width / 200 * 914400))   # assets are rendered at 200 dpi
         width = min(width, natural)
     paragraph.add_run().add_picture(io.BytesIO(storage.get(asset.storage_key)), width=width)
+    _write_legend(doc, item, font)
+
+
+def _write_legend(doc, item: Item, font: str) -> None:
+    """The figure is a picture of the source page, so its labels are listed below it in both languages."""
+    cells = [item.cells[i] for i in sorted(item.cells)]
+    if not cells:
+        return
+    table = doc.add_table(rows=len(cells), cols=2)
+    table.style = "Table Grid"
+    for row, cell in zip(table.rows, cells, strict=True):
+        add_text(row.cells[0].paragraphs[0], cell.source, font, size=8)
+        add_text(row.cells[1].paragraphs[0], cell.text, font, size=8, highlight=not cell.translated)
+    doc.add_paragraph()
 
 
 def write_book(session: Session, items: list[Item], storage: Storage | None, font: str):
@@ -235,6 +249,8 @@ def write_book(session: Session, items: list[Item], storage: Storage | None, fon
         elif kind in ("footnote", "reference"):
             for cell in cells:
                 add_text(doc.add_paragraph(), cell.text, font, size=8.5, highlight=not cell.translated)
+        elif kind == "equation" and block.asset_id:      # a fraction formula: the source image, as printed
+            _write_figure(doc, session, Item(block, {}), storage, font)
         elif kind == "equation":
             paragraph = doc.add_paragraph()
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -265,7 +281,6 @@ def write_bilingual(session: Session, items: list[Item], font: str):
             row = table.add_row().cells
             add_text(row[0].paragraphs[0], str(item.block.page_no or ""), font, size=8)
             add_text(row[1].paragraphs[0], "[figure]", font, size=9, italic=True)
-            continue
         for idx in sorted(item.cells):
             cell = item.cells[idx]
             row = table.add_row().cells

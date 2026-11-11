@@ -28,12 +28,17 @@ BBox = tuple[float, float, float, float]
 LIGATURES = str.maketrans({"ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff", "ﬃ": "ffi", "ﬄ": "ffl", "­": ""})
 # "Table 17.1 Title" / "FIGURE 3 Title" are captions; "Table 17.1 is continued ..." is a sentence.
 CAPTION_RE = re.compile(r"^(?i:Figure|Fig\.?|Table|Box|Algorithm)\s+\d+[\w.\-]*(?=$|[.:]?\s+[A-Z0-9(]|\s*[—–:|])")
-LIST_RE = re.compile(r"^(?:\d{1,2}[.)]|[a-z][.)]|[•▪■●◦‣–-])\s+\S")
+# the label alone; with what follows it is a caption only where the page geometry says so (a caption bar)
+CAPTION_LABEL_RE = re.compile(r"^(?i:Figure|Fig\.?|Table|Box|Algorithm)\s+\d+(?:[.\-]\d+)*[a-z]?\b")
+LIST_RE = re.compile(r"^(?:\d{1,2}[.)]|[a-z][.)]|[•·▪■●◦‣–-])\s+\S")
 NOTE_RE = re.compile(r"^(?:[*†‡§¶]|Note[s:.]|Abbreviations?\b|Source[s:.])")
 REFERENCE_RE = re.compile(r"^\[?\d{1,3}[\].]\s+[A-Z][\w'’\-]+,?\s+[A-Z]{1,3}\b")
 REFERENCES_HEADING_RE = re.compile(r"^(selected |key )?(references|bibliography)\b", re.I)
 CHAPTER_RE = re.compile(r"^(chapter|section|part)\s+(\d+|[ivxlc]+)\b", re.I)
-BULLET_RE = re.compile(r"^[•▪■●◦‣–-]\s+")
+BULLET_RE = re.compile(r"^[•·▪■●◦‣–-]\s+")
+DOT_BULLET_RE = re.compile(r"^[•·▪■●◦‣]\s+\S")          # unambiguous bullets (a dash can open a wrapped line)
+STEP_RE = re.compile(r"^(\d{1,2})\s+[A-Z(]")          # "7 Inflate cuff ...": a numbered step without a period
+FOLIO_RE = re.compile(r"^(\d{1,4})\b.*\D|\D.*\b(\d{1,4})$", re.S)
 PAGE_NUMBER_RE = re.compile(r"^(page\s+)?(\d{1,4}|[ivxlcdm]{1,7})$", re.I)
 SENTENCE_END = (".", "?", "!", ":", ";", "”", '"', ")", "]")
 
@@ -59,6 +64,7 @@ class Chunk:
     level: int | None = None
     parts: list[tuple[int, BBox]] = field(default_factory=list)  # continuation fragments
     type_locked: bool = False       # type set by the structure model; heuristics must not override
+    in_caption_bar: bool = False    # printed in a shaded caption bar: a caption whatever its wording
     rows: list[list[str]] | None = None     # table cells, exact text
     labels: list[str] = field(default_factory=list)   # text found inside a figure
     caption_id: str | None = None   # caption chunk that belongs to this table/figure
@@ -71,6 +77,8 @@ class Chunk:
     continues: str | None = None    # id of the first fragment when a table continues on a later page
     repeated_header_rows: int = 0   # leading rows that only repeat the first fragment's header
     note_of: str | None = None      # table this note belongs to
+    label_boxes: list[BBox] = field(default_factory=list)   # where each figure label is printed
+    extra: dict = field(default_factory=dict)         # detector-specific details (formula parts, ...)
 
     @property
     def width(self) -> float:
@@ -107,6 +115,13 @@ class ParsedDocument:
     body_size: float
     dropped: int = 0                # running headers, footers, page numbers
     warnings: list[str] = field(default_factory=list)
+    # structure the parser is not sure about: {"page", "code", "severity": "error"|"warning", "message"}.
+    # An "error" means the stored structure is known to be damaged; translation is held back.
+    issues: list[dict] = field(default_factory=list)
+
+    def report(self, page: int, code: str, severity: str, message: str) -> None:
+        self.issues.append({"page": page, "code": code, "severity": severity, "message": message})
+        self.warnings.append(f"p{page}: {message}")
 
 
 # ----------------------------------------------------------------------------- extraction
@@ -159,8 +174,73 @@ def join_lines(lines: list[str]) -> str:
     return text
 
 
+def _list_run(group: list[tuple]) -> tuple[int, int, list[int]]:
+    """Where a list sits inside one PDF text block: (first line, end line, marker lines).
+
+    A block that opens with marker lines is a list. A block may also hold a sentence, then
+    bullets or numbered steps, then the next paragraph; those are found only from unambiguous
+    signs (dot bullets, or step numbers that count up one by one).
+    """
+    texts = [g[0] for g in group]
+    markers = [i for i, t in enumerate(texts) if LIST_RE.match(t)]
+    if not (len(markers) >= 2 and markers[0] == 0):
+        markers = [i for i, t in enumerate(texts) if DOT_BULLET_RE.match(t)]
+        if len(markers) == 1 and markers[0] > 0:
+            markers = markers * 2                     # one bullet after its lead-in; the list goes on elsewhere
+        if len(markers) < 2:
+            steps = [(i, int(m.group(1))) for i, t in enumerate(texts) if (m := STEP_RE.match(t))]
+            best: list[tuple[int, int]] = []
+            run: list[tuple[int, int]] = []
+            for step in steps:
+                run = run + [step] if run and step[1] == run[-1][1] + 1 else [step]
+                if len(run) > len(best):
+                    best = run
+            markers = [i for i, _ in best] if len(best) >= 3 else []
+    if len(markers) < 2:
+        return 0, len(group), []
+    markers = sorted(set(markers))
+    if markers[0] == 0 and LIST_RE.match(texts[0]) and not DOT_BULLET_RE.match(texts[0]) \
+            and not STEP_RE.match(texts[0]):
+        return 0, len(group), markers                     # classic numbered/lettered list: the whole block
+    # The list ends where a line that is not a marker follows a finished item: an item line that
+    # stops short of the right edge and closes its sentence is not wrapped onto the next line.
+    left, right = min(g[3][0] for g in group), max(g[3][2] for g in group)
+    end = markers[0] + 1
+    while end < len(group):
+        prev = group[end - 1]
+        closed = prev[0].rstrip().endswith((".", ":", ";", "?", "!"))
+        short = prev[3][2] < right - 0.12 * (right - left)
+        run_in = closed and group[end][5] and not group[markers[0]][5]      # a bold run-in label starts here
+        if end not in markers and (short and closed or run_in or end > markers[-1] and short):
+            break
+        end += 1
+    return markers[0], end, markers
+
+
 def _union(boxes: list[BBox]) -> BBox:
     return (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
+
+
+def is_caption(c: Chunk) -> bool:
+    return bool(CAPTION_RE.match(c.text)) or (c.in_caption_bar and bool(CAPTION_LABEL_RE.match(c.text)))
+
+
+def join_caption_labels(chunks: list[Chunk]) -> list[Chunk]:
+    """"Figure 13.1" set apart from its sentence on the same line is one caption."""
+    out = list(chunks)
+    for label in [c for c in chunks if CAPTION_LABEL_RE.fullmatch(c.text.strip().rstrip(".:"))]:
+        rest = [c for c in out if c is not label and -3 <= c.bbox[0] - label.bbox[2] <= 40
+                and min(c.bbox[3], label.bbox[3]) - max(c.bbox[1], label.bbox[1])
+                > 0.5 * (label.bbox[3] - label.bbox[1]) and c.bbox[1] >= label.bbox[1] - 3]
+        if not rest:
+            continue
+        text = min(rest, key=lambda c: c.bbox[0])
+        label.text = f"{label.text} {text.text}"
+        label.bbox = _union([label.bbox, text.bbox])
+        label.lines = max(label.lines, text.lines)
+        label.bold = False
+        out.remove(text)
+    return out
 
 
 def extract_page(page: pymupdf.Page, number: int) -> tuple[PageInfo, list[Chunk]]:
@@ -173,26 +253,38 @@ def extract_page(page: pymupdf.Page, number: int) -> tuple[PageInfo, list[Chunk]
             x0, y0, x1, y1 = block["bbox"]
             image_area += max(0.0, x1 - x0) * max(0.0, y1 - y0)
             continue
-        group: list[tuple[str, float, bool, BBox, str]] = []
+        group: list[tuple[str, float, bool, BBox, str, bool]] = []
 
-        def flush(group=group):
-            if not group:
+        def emit(lines, markers=None):
+            if not lines:
                 return
             chunk = Chunk(
-                id=f"p{number}c{len(chunks)}", page=number, bbox=_union([g[3] for g in group]),
-                text=join_lines([g[0] for g in group]), size=statistics.fmean(g[1] for g in group),
-                bold=all(g[2] for g in group), lines=len(group),
-                font=Counter(g[4] for g in group).most_common(1)[0][0],
+                id=f"p{number}c{len(chunks)}", page=number, bbox=_union([g[3] for g in lines]),
+                text=join_lines([g[0] for g in lines]), size=statistics.fmean(g[1] for g in lines),
+                bold=all(g[2] for g in lines), lines=len(lines),
+                font=Counter(g[4] for g in lines).most_common(1)[0][0],
             )
-            markers = [i for i, g in enumerate(group) if LIST_RE.match(g[0])]
-            if len(markers) >= 2 and markers[0] == 0:
+            if markers:
                 # several marker lines in one block: a list; wrapped lines stay with their item
-                bounds = markers + [len(group)]
-                chunk.items = [join_lines([g[0] for g in group[a:b]]) for a, b in zip(bounds, bounds[1:], strict=False)]
+                bounds = markers + [len(lines)]
+                chunk.items = [join_lines([g[0] for g in lines[a:b]]) for a, b in zip(bounds, bounds[1:], strict=False)]
                 chunk.text = "\n".join(chunk.items)
                 chunk.type = "list"
             if chunk.text:
                 chunks.append(chunk)
+
+        def flush(group=group):
+            if not group:
+                return
+            rest = list(group)
+            while rest:
+                first, end, markers = _list_run(rest)
+                if not markers:
+                    emit(rest)
+                    break
+                emit(rest[:first])                        # the sentence that introduces the list
+                emit(rest[first:end], [m - first for m in markers if m < end])
+                rest = rest[end:]                         # what follows: a paragraph, a sub-heading, more bullets
             group.clear()
 
         for line in block.get("lines", []):
@@ -208,13 +300,19 @@ def extract_page(page: pymupdf.Page, number: int) -> tuple[PageInfo, list[Chunk]
                 bold_end = prev[2] and not bold and len(group) <= 2 and all(g[2] for g in group)
                 shared = min(box[3], prev[3][3]) - max(box[1], prev[3][1])
                 same_row = shared > 0.3 * min(box[3] - box[1], prev[3][3] - prev[3][1])
-                apart = same_row and box[0] - prev[3][2] > SIDE_BY_SIDE_GAP
-                if size_jump or bold_end or apart:
+                apart = same_row and (box[0] - prev[3][2] > SIDE_BY_SIDE_GAP or prev[3][0] - box[2] > SIDE_BY_SIDE_GAP)
+                # a bold heading directly above a bold run-in label set in another typeface
+                new_face = (bold and len(group) <= 2 and all(g[2] for g in group)
+                            and font.split("-")[0] != prev[4].split("-")[0])
+                if size_jump or bold_end or apart or new_face:
                     flush()
-            group.append((text, size, bold, box, font))
+            lead = next((sp for sp in line["spans"] if sp["text"].strip()), None)
+            lead_bold = bool(lead and (lead["flags"] & 16 or "bold" in lead["font"].lower()))
+            group.append((text, size, bold, box, font, lead_bold))
         flush()
     info.image_area = min(1.0, image_area / (info.width * info.height))
     info.scanned = sum(len(c.text) for c in chunks) < 20 and info.image_area > 0.5
+    chunks = join_caption_labels(chunks)
     if not info.scanned:
         from app.ingest.pdf_objects import detect_objects  # local import: pdf_objects uses Chunk
         image_boxes = [tuple(b["bbox"]) for b in data["blocks"] if b["type"] == 1]
@@ -236,18 +334,35 @@ def drop_running_heads(pages: list[PageInfo], per_page: list[list[Chunk]]) -> in
     def in_margin(c: Chunk, p: PageInfo) -> bool:
         return c.bbox[3] <= p.height * MARGIN_BAND or c.bbox[1] >= p.height * (1 - MARGIN_BAND)
 
+    def folio(c: Chunk) -> int | None:
+        """The page number a marginal line carries at its start or end ("Chapter title  35")."""
+        text = re.sub(r"<sup>.*?</sup>", "", c.text).strip()
+        if c.lines > 2 or len(text) > 200:
+            return None
+        if PAGE_NUMBER_RE.match(text) and text.isdigit():
+            return int(text)
+        m = FOLIO_RE.match(text)
+        return int(m.group(1) or m.group(2)) if m else None
+
     seen: Counter[str] = Counter()
+    offsets: Counter[int] = Counter()                 # printed page number minus position in the file
     for page, chunks in zip(pages, per_page, strict=True):
-        for key in {_running_key(c.text) for c in chunks if in_margin(c, page) and len(c.text) < 150}:
+        marginal = [c for c in chunks if in_margin(c, page)]
+        for key in {_running_key(c.text) for c in marginal if len(c.text) < 400}:
             seen[key] += 1
+        for offset in {n - page.number for c in marginal if (n := folio(c)) is not None}:
+            offsets[offset] += 1
     threshold = max(2, min(3, len(pages))) if len(pages) < 6 else max(3, len(pages) // 10)
+    # a running head that changes with every chapter is still furniture when it carries the folio
+    numbering = {o for o, n in offsets.items() if n >= max(3, len(pages) // 4)} if len(pages) >= 4 else set()
     dropped = 0
     for page, chunks in zip(pages, per_page, strict=True):
         keep = []
         for c in chunks:
             marginal = in_margin(c, page)
-            if marginal and (PAGE_NUMBER_RE.match(c.text.strip()) or
-                             (len(pages) > 1 and seen[_running_key(c.text)] >= threshold)):
+            if marginal and (PAGE_NUMBER_RE.match(c.text.strip())
+                             or (len(pages) > 1 and seen[_running_key(c.text)] >= threshold)
+                             or (folio(c) is not None and folio(c) - page.number in numbering)):
                 dropped += 1
             else:
                 keep.append(c)
@@ -269,15 +384,19 @@ def _gutter(chunks: list[Chunk]) -> float | None:
     return best
 
 
-def reading_order(chunks: list[Chunk]) -> list[Chunk]:
-    """Recursive column cut. Full-width chunks split the page into bands; columns read left to right."""
+def reading_order(chunks: list[Chunk], notes: list[str] | None = None) -> list[Chunk]:
+    """Recursive column cut. Full-width chunks split the page into bands; columns read left to right.
+
+    `notes` receives a remark when a region had to be read top to bottom although its text
+    blocks overlap sideways without a clear column structure.
+    """
     if len(chunks) <= 1:
         return list(chunks)
     cut = _gutter(chunks)
     if cut is not None:
         left = [c for c in chunks if c.bbox[2] <= cut]
         right = [c for c in chunks if c.bbox[2] > cut]
-        return reading_order(left) + reading_order(right)
+        return reading_order(left, notes) + reading_order(right, notes)
 
     # No clean gutter: something spans the columns. Full-width chunks (titles, wide
     # paragraphs, a band with a different column count) cut the region into horizontal bands.
@@ -296,8 +415,15 @@ def reading_order(chunks: list[Chunk]) -> list[Chunk]:
             above = [c for c in rest if (c.bbox[1] + c.bbox[3]) / 2 < s.bbox[1]
                      or (c.bbox[2] <= s.bbox[0] and c.bbox[1] < s.bbox[3] and c.bbox[3] > s.bbox[1])]
             rest = [c for c in rest if c not in above]
-            ordered += reading_order(above) + [s]
-        return ordered + reading_order(rest)
+            ordered += reading_order(above, notes) + [s]
+        return ordered + reading_order(rest, notes)
+    body = [c for c in chunks if c.type not in FIXED_TYPES and not c.detection and c.lines >= 2
+            and not is_caption(c)]
+    if notes is not None and len(body) >= 3 and any(
+            min(a.bbox[3], b.bbox[3]) - max(a.bbox[1], b.bbox[1]) > 0.5 * min(a.bbox[3] - a.bbox[1],
+                                                                                b.bbox[3] - b.bbox[1])
+            for i, a in enumerate(body) for b in body[i + 1:]):
+        notes.append("interleaved")            # paragraphs side by side, yet no gutter between them
     return sorted(chunks, key=lambda c: (round(c.bbox[1], 1), c.bbox[0]))
 
 
@@ -337,7 +463,7 @@ def _is_equation(c: Chunk) -> bool:
 def classify(chunks: list[Chunk], pages: dict[int, PageInfo], body: float) -> None:
     in_references = False
     for c in chunks:
-        if c.type in FIXED_TYPES:
+        if c.type in FIXED_TYPES or c.detection:     # found from the page geometry
             continue
         text = c.text
         if c.items:
@@ -346,7 +472,7 @@ def classify(chunks: list[Chunk], pages: dict[int, PageInfo], body: float) -> No
         short = len(text) < 200 and c.lines <= 3
         bigger = c.size >= body + HEADING_DELTA
         bold_head = c.bold and c.size >= body - 0.3 and len(text) < 120 and c.lines <= 2
-        if CAPTION_RE.match(text):
+        if is_caption(c):
             c.type = "caption"
         elif re.fullmatch(r"\d{1,3}", text.strip()) and c.size >= body + 4:
             c.type = "chapter_number"
@@ -357,6 +483,8 @@ def classify(chunks: list[Chunk], pages: dict[int, PageInfo], body: float) -> No
         elif (c.size <= body - 1.5 and c.bbox[1] >= pages[c.page].height * 0.8
               and not (in_references and re.match(r"^\[?\d", text))):
             c.type = "footnote"
+        elif len(text) < 400 and re.match(r"^Abbreviations?\s*:", text):
+            c.type = "footnote"                      # the key printed under a figure or table
         elif in_references or REFERENCE_RE.match(text):
             c.type = "reference"
         elif _is_equation(c):
@@ -387,9 +515,11 @@ def link_captions(chunks: list[Chunk], body: float) -> list[Chunk]:
         out.remove(chunk)
         out.insert(out.index(anchor) + (1 if after else 0), chunk)
 
+    by_id = {c.id: c for c in chunks}
+    taken.update(c.caption_id for c in chunks if c.type in OBJECT_TYPES and c.caption_id)
     for obj in (c for c in chunks if c.type in OBJECT_TYPES):
-        best, best_gap = None, 80.0
-        for cap in captions:
+        best, best_gap = by_id.get(obj.caption_id), 80.0     # set already when the caption heads a panel
+        for cap in captions if best is None else ():
             is_table_caption = cap.text.lower().startswith("table")
             if cap.id in taken or is_table_caption != (obj.type == "table"):
                 continue
@@ -443,11 +573,29 @@ def _column_of(c: Chunk) -> tuple[int, int]:
     return c.page, round(c.bbox[0] / 20)
 
 
+def _continues_list(head: Chunk, nxt: Chunk) -> bool:
+    """Numbered steps that count on (… 6 | 7 …), or bullets carried over into the next column."""
+    if not head.items or not nxt.items:
+        return False
+    last, first = STEP_RE.match(head.items[-1]), STEP_RE.match(nxt.items[0])
+    if last and first:
+        return int(first.group(1)) == int(last.group(1)) + 1
+    moved = _column_of(nxt) != _column_of(head)
+    return bool(moved and DOT_BULLET_RE.match(head.items[-1]) and DOT_BULLET_RE.match(nxt.items[0]))
+
+
 def merge_continuations(chunks: list[Chunk]) -> list[Chunk]:
     """Join a paragraph that breaks at the end of a column or page with its continuation."""
     out: list[Chunk] = []
     last_para: Chunk | None = None
     for c in chunks:
+        if c.type == "list" and out and out[-1].type == "list" and _continues_list(out[-1], c):
+            head = out[-1]
+            head.items += c.items
+            head.text = "\n".join(head.items)
+            head.parts.append((c.page, c.bbox))
+            head.lines += c.lines
+            continue
         if c.type == "paragraph" and last_para is not None:
             prev_text = re.sub(r"<sup>.*?</sup>$", "", last_para.text).rstrip()
             moved = _column_of(c) != _column_of(last_para)
@@ -462,6 +610,53 @@ def merge_continuations(chunks: list[Chunk]) -> list[Chunk]:
         elif c.type not in ("caption", "footnote", "table", "figure", "callout"):
             last_para = None        # a heading, list or reference ends the paragraph for good
     return out
+
+
+# ----------------------------------------------------------------------------- structure review
+
+
+def review_structure(parsed: ParsedDocument) -> None:
+    """Record what the parser is unsure about, so it is seen before any paid translation.
+
+    error   = the stored structure is known to be damaged (translation is held back)
+    warning = plausible, but a person should look at the page
+    """
+    linked = {c.caption_id for c in parsed.chunks if c.caption_id}
+    for c in parsed.chunks:
+        if c.type == "table":
+            rows = c.rows or []
+            cells = [cell for row in rows for cell in row]
+            full = sum(1 for row in rows if sum(bool(cell) for cell in row) >= 2)
+            broken = [cell for cell in cells if re.fullmatch(r"[()\[\]?]+", cell.strip())
+                      or cell.count("(") != cell.count(")")]       # text cut through the middle
+            if rows and (full < 0.6 * len(rows) or len(broken) >= 2):
+                parsed.report(c.page, "table_structure", "error",
+                              f"table {c.label or ''} has an irregular grid ({full} of {len(rows)} rows are complete); "
+                              "it may be a drawing or its cells may be misaligned".replace("  ", " "))
+            elif c.caption_id is None:
+                parsed.report(c.page, "table_without_caption", "warning",
+                              f"a table of {len(rows)} rows has no caption; check that it is a table")
+        elif c.type == "figure":
+            if c.caption_id is None:
+                parsed.report(c.page, "figure_without_caption", "warning", "a figure has no caption")
+            wordy = [t for t in c.labels if re.search(r"[A-Za-z]{3}", t)]
+            if len(wordy) >= 12:
+                parsed.report(c.page, "figure_labels", "warning",
+                              f"figure {c.label or ''} carries {len(wordy)} text labels; check how they were grouped"
+                              .replace("  ", " "))
+        elif c.type == "equation" and c.detection == "fraction":
+            parsed.report(c.page, "formula_image", "warning",
+                          "a fraction formula is kept as an image of the source and is not translated; "
+                          f"check it: {c.text[:120]}")
+        elif c.type == "caption" and c.id not in linked:
+            kind = "table" if c.text.lower().startswith("table") else "figure"
+            parsed.report(c.page, f"{kind}_not_found", "error" if kind == "table" else "warning",
+                          f"caption \"{c.text[:60]}\" has no {kind} attached; its content may be in the text flow")
+        elif c.type in ("paragraph", "list_item", "other") and not c.items:
+            text = re.sub(r"</?su[pb]>", "", c.text).strip()
+            if text and len(text) <= 4 and not re.search(r"[A-Za-z0-9]", text):
+                parsed.report(c.page, "stray_symbols", "error",
+                              f"loose symbols \"{text}\" stand as a paragraph; a formula or label was probably split")
 
 
 # ----------------------------------------------------------------------------- chapters
@@ -532,9 +727,13 @@ def analyse(doc: pymupdf.Document, reorder=None) -> ParsedDocument:
     by_number = {p.number: p for p in pages}
 
     ordered: list[Chunk] = []
+    uncertain_order: list[int] = []
     for info, chunks, page in zip(pages, per_page, doc, strict=True):
         info.columns = count_columns(chunks)
-        page_chunks = reading_order(chunks)
+        notes: list[str] = []
+        page_chunks = reading_order(chunks, notes)
+        if notes:
+            uncertain_order.append(info.number)
         classify(page_chunks, by_number, body)
         page_chunks = link_captions(page_chunks, body)
         info.complex = bool(
@@ -563,8 +762,16 @@ def analyse(doc: pymupdf.Document, reorder=None) -> ParsedDocument:
     merged = merge_continuations(ordered)
     link_continued_tables(merged)
     chapters = find_chapters(doc, merged, len(pages))
-    return ParsedDocument(pages=pages, chunks=merged, chapters=chapters, body_size=body,
-                          dropped=dropped, warnings=warnings)
+    parsed = ParsedDocument(pages=pages, chunks=merged, chapters=chapters, body_size=body,
+                            dropped=dropped, warnings=warnings)
+    for number in scanned:
+        parsed.issues.append({"page": number, "code": "scanned", "severity": "warning",
+                              "message": "no text layer; the page needs OCR and is not translated"})
+    for number in uncertain_order:
+        parsed.report(number, "reading_order", "error",
+                      "text columns could not be separated; the reading order is a guess")
+    review_structure(parsed)
+    return parsed
 
 
 def analyse_bytes(data: bytes, reorder=None) -> ParsedDocument:
