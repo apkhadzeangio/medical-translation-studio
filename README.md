@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-7 — glossary and translation memory.** Upload, background parsing, terminology and TM are in place; the translation stage is next.
+Status: **PR-8 — translation stage.** A parsed chapter can be translated end to end; so far only against a simulated model.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
@@ -36,6 +36,10 @@ The earlier one-file pilot lives in `tools/spike/`.
 | DELETE | `/api/glossary/{term_id}` | remove a term |
 | POST | `/api/projects/{id}/tm/import` | CSV or TSV of translated sentence pairs |
 | GET | `/api/projects/{id}/tm` | translation-memory entry counts by origin |
+| POST | `/api/chapters/{id}/translate` | queue a chapter; returns chunks, words and a rough cost estimate |
+| POST | `/api/documents/{id}/translate` | queue every chapter of a parsed document |
+| GET | `/api/chapters/{id}/segments` | source and translation side by side with open QA flags |
+| GET | `/api/projects/{id}/cost` | budget, amount spent, tokens and cost per stage |
 
 `/api/*` requires `Authorization: Bearer $API_TOKEN` when `API_TOKEN` is set.
 
@@ -52,6 +56,22 @@ The earlier one-file pilot lives in `tools/spike/`.
 | `glossary_terms`, `tm_entries` | terminology and translation memory |
 | `jobs` | Postgres work queue with idempotency keys |
 | `llm_calls` | token and cost ledger per request |
+
+## Translation stage
+
+`app/pipeline/translate.py` turns a chapter into `translate_chunk` jobs (about
+`TRANSLATE_CHUNK_WORDS` source words each). For each chunk:
+
+1. segments already translated are skipped, so a retry pays only for what is missing
+2. identical source text found in the translation memory is reused without a model call
+3. the rest goes to the model with the chapter title, the glossary terms that occur in the
+   chunk, and the preceding text as context
+4. an answer that does not cover every segment is rejected whole and the job retries
+5. every translation is checked without a model (`app/pipeline/checks.py`): numbers,
+   `<sup>`/`<sub>` markup, inequality and unit symbols, untranslated text, length, glossary.
+   A critical finding marks the segment `flagged` and keeps it out of the translation memory.
+
+References, equations and the chapter numeral are not sent for translation.
 
 ## Glossary and translation memory
 

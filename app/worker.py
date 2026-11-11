@@ -91,8 +91,9 @@ class Worker:
 
 def default_handlers() -> dict[str, Handler]:
     from app.ingest.job import ingest_document
+    from app.pipeline.translate import translate_chunk
 
-    return {"ingest_document": ingest_document}
+    return {"ingest_document": ingest_document, "translate_chunk": translate_chunk}
 
 
 def main() -> None:

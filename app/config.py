@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     llm_max_attempts: int = 6
     llm_concurrency_per_key: int = 4
     llm_timeout_seconds: float = 600
+    translate_chunk_words: int = 1200   # source words per model call
 
     @property
     def llm_key_list(self) -> list[str]:
