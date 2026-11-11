@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-8 — translation stage.** A parsed chapter can be translated end to end; so far only against a simulated model.
+Status: **PR-9 — review and QA.** A chapter runs translate → medical review → independent QA automatically; so far only against a simulated model.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
@@ -38,7 +38,10 @@ The earlier one-file pilot lives in `tools/spike/`.
 | GET | `/api/projects/{id}/tm` | translation-memory entry counts by origin |
 | POST | `/api/chapters/{id}/translate` | queue a chapter; returns chunks, words and a rough cost estimate |
 | POST | `/api/documents/{id}/translate` | queue every chapter of a parsed document |
+| POST | `/api/chapters/{id}/review` | queue the medical review (normally automatic) |
+| POST | `/api/chapters/{id}/qa` | queue the independent QA (needs `LLM_QA_MODEL`) |
 | GET | `/api/chapters/{id}/segments` | source and translation side by side with open QA flags |
+| GET | `/api/segments/{id}/versions` | every stage's text and every QA finding for one segment |
 | GET | `/api/projects/{id}/cost` | budget, amount spent, tokens and cost per stage |
 
 `/api/*` requires `Authorization: Bearer $API_TOKEN` when `API_TOKEN` is set.
@@ -72,6 +75,25 @@ The earlier one-file pilot lives in `tools/spike/`.
    A critical finding marks the segment `flagged` and keeps it out of the translation memory.
 
 References, equations and the chapter numeral are not sent for translation.
+
+## Review and QA
+
+`app/pipeline/review.py`. After each chunk job an `advance_chapter` job checks whether the
+chapter's stage is complete and queues the next one:
+
+`translating` → `reviewing` → `qa` → `done`
+
+- **Medical review** (`LLM_REVIEW_MODEL`, default `LLM_MODEL`) sees source, translation and the
+  problems the automatic checks already found, and returns edits only. An edit that would break
+  a number, a symbol or the markup is refused and the earlier text stands. An accepted edit
+  becomes a new version; the earlier one is kept.
+- **Independent QA** (`LLM_QA_MODEL`) reports problems and never changes text. It gets no hints
+  from the earlier stages. Use a model from another vendor: the plan response says
+  `"independent": false` when it is the same model as the reviewer. Without `LLM_QA_MODEL` the
+  stage is skipped and only the automatic checks apply.
+- A chapter with an open critical finding stays in `qa` until a person resolves it.
+
+Set `{"auto_review": false}` or `{"auto_qa": false}` in a project's settings to run a stage by hand.
 
 ## Glossary and translation memory
 

@@ -164,6 +164,8 @@ class Segment(Base):
     source_text: Mapped[str] = mapped_column(Text)
     source_hash: Mapped[str] = mapped_column(String(64))
     translatable: Mapped[bool] = mapped_column(Boolean, server_default=sa_text("true"))
+    review_done: Mapped[bool] = mapped_column(Boolean, server_default=sa_text("false"))
+    qa_done: Mapped[bool] = mapped_column(Boolean, server_default=sa_text("false"))
     status: Mapped[str] = mapped_column(String(16), server_default="pending")
 
 

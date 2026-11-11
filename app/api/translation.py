@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.models import Block, Chapter, Document, LLMCall, Project, QAFlag, Segment, SegmentVersion
+from app.pipeline.review import plan_qa, plan_review, qa_model
 from app.pipeline.translate import plan_chapter
 
 router = APIRouter(prefix="/api", tags=["translation"])
@@ -35,6 +36,46 @@ def translate_document(document_id: uuid.UUID, session: Session = Depends(get_se
     session.commit()
     return {"chapters": len(plans), "chunks": sum(p["chunks"] for p in plans), "words": sum(p["words"] for p in plans),
             "estimated_cost_usd": round(sum(p["estimated_cost_usd"] for p in plans), 2), "estimate_is_rough": True}
+
+
+@router.post("/chapters/{chapter_id}/review")
+def review_chapter(chapter_id: uuid.UUID, session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Queue the medical review of a chapter (normally queued automatically after translation)."""
+    if session.get(Chapter, chapter_id) is None:
+        raise HTTPException(status_code=404, detail="chapter not found")
+    plan = plan_review(session, chapter_id)
+    session.commit()
+    return plan
+
+
+@router.post("/chapters/{chapter_id}/qa")
+def qa_chapter(chapter_id: uuid.UUID, session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Queue the independent QA of a chapter. Needs LLM_QA_MODEL."""
+    if session.get(Chapter, chapter_id) is None:
+        raise HTTPException(status_code=404, detail="chapter not found")
+    if not qa_model():
+        raise HTTPException(status_code=409, detail="no QA model configured (LLM_QA_MODEL)")
+    plan = plan_qa(session, chapter_id)
+    session.commit()
+    return plan
+
+
+@router.get("/segments/{segment_id}/versions")
+def segment_versions(segment_id: uuid.UUID, session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Everything that happened to one segment: each stage's text, and every QA finding."""
+    segment = session.get(Segment, segment_id)
+    if segment is None:
+        raise HTTPException(status_code=404, detail="segment not found")
+    versions = session.scalars(select(SegmentVersion).where(SegmentVersion.segment_id == segment_id)
+                               .order_by(SegmentVersion.created_at, SegmentVersion.id))
+    flags = session.scalars(select(QAFlag).where(QAFlag.segment_id == segment_id).order_by(QAFlag.created_at))
+    return {
+        "source": segment.source_text, "status": segment.status,
+        "versions": [{"stage": v.stage, "text": v.text, "current": v.is_current, "model": v.model, "note": v.note,
+                      "created_at": v.created_at.isoformat()} for v in versions],
+        "flags": [{"check": f.check_name, "severity": f.severity, "message": f.message, "resolved": f.resolved}
+                  for f in flags],
+    }
 
 
 @router.get("/chapters/{chapter_id}/segments")

@@ -11,7 +11,7 @@ import uuid
 from functools import lru_cache
 from typing import Any
 
-from sqlalchemy import Engine, func, select
+from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from app import jobs
@@ -167,8 +167,14 @@ def translate_chunk(session: Session, job: Job) -> None:
                 tm_add(session, job.project_id, seg.source_text, text, "pipeline")
 
     session.flush()
-    left = session.scalar(
-        select(func.count()).select_from(Segment)
-        .where(Segment.chapter_id == chapter_id, Segment.translatable, Segment.status == "pending"))
-    if left == 0:
-        chapter.status = "reviewing"             # translated; waiting for the review stage
+    enqueue_advance(session, job)
+
+
+def enqueue_advance(session: Session, job: Job) -> None:
+    """Ask for the chapter's stage to be re-evaluated once this job has committed.
+
+    Two chunk jobs finishing at the same moment cannot see each other's uncommitted work, so
+    neither can tell that the stage is complete. A follow-up job, run afterwards, can.
+    """
+    jobs.enqueue(session, "advance_chapter", f"advance:{job.payload['chapter_id']}:{job.id}",
+                 {"chapter_id": job.payload["chapter_id"]}, project_id=job.project_id, priority=5)

@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     llm_concurrency_per_key: int = 4
     llm_timeout_seconds: float = 600
     translate_chunk_words: int = 1200   # source words per model call
+    llm_review_model: str | None = None   # medical review; defaults to llm_model
+    # Independent QA. Use a model from a different vendor where possible; a model checking
+    # its own work misses its own mistakes. Leave llm_qa_model empty to skip the model QA stage.
+    llm_qa_model: str | None = None
+    llm_qa_base_url: str | None = None    # only if the QA model lives at another endpoint
+    llm_qa_api_keys: str = ""
 
     @property
     def llm_key_list(self) -> list[str]:
