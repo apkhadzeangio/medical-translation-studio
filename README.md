@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-4a — PDF ingestion (text).** Foundation, LLM gateway, and a universal PDF parser.
+Status: **PR-4b — tables and figures.** Foundation, LLM gateway, and a universal PDF parser.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
@@ -56,13 +56,21 @@ The earlier one-file pilot lives in `tools/spike/`.
   if every id appears exactly once; otherwise the deterministic result stands.
 - Superscripts are kept as `<sup>12</sup>` so citation markers do not fuse with words.
 
+- **Tables** become one block with exact cell text (one segment per cell). Ruled grids and
+  horizontal-rule ("booktabs") tables under a `Table N` caption are recognised.
+- **Figures** (raster images and vector drawings) become one block; text inside the figure is
+  kept as `labels`, out of the main flow. Tables and figures are linked to their captions and
+  rendered to PNG assets (`STORAGE_DIR`) for the editor and for export.
+
 Inspect a parse without the database:
 
     python -m app.ingest.cli book.pdf --pages 40-45 --text
 
-Known limits: tables and figure extraction arrive in PR-4b; scanned pages are detected and
-reported but not OCR'd; a line-break hyphen is removed when the next line starts lowercase,
-which also joins true compounds broken at the hyphen (`follow-` / `up` → `followup`).
+Known limits: tables with no rules at all are not recognised yet and stay as paragraphs;
+merged cells are not modelled; figure labels are not translated (the image is reused as is);
+scanned pages are detected and reported but not OCR'd; a line-break hyphen is removed when the
+next line starts lowercase, which also joins true compounds broken at the hyphen
+(`follow-` / `up` → `followup`).
 PyMuPDF is AGPL-licensed: fine for internal use, needs a commercial licence if this is ever
 distributed as closed-source software.
 

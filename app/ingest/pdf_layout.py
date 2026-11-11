@@ -11,7 +11,8 @@ Pipeline per document:
   5. merge paragraphs that continue across a column or page break
   6. split into chapters (PDF outline first, then heading patterns)
 
-Tables and figures are handled in PR-4b; here image areas only mark a page as complex.
+Tables and figures are detected per page (pdf_objects.py), take their place in the reading
+order as single chunks, and swallow the text that lies inside them.
 """
 from __future__ import annotations
 
@@ -35,6 +36,7 @@ SENTENCE_END = (".", "?", "!", ":", ";", "”", '"', ")", "]")
 
 MARGIN_BAND = 0.09      # top/bottom share of the page where running heads live
 MIN_GUTTER = 9.0        # points of clear horizontal space that count as a column gap
+OBJECT_TYPES = ("table", "figure")
 HEADING_DELTA = 1.2     # points above body size that make a heading
 SPLIT_DELTA = 1.2       # font-size change that splits one PDF block into two chunks
 
@@ -52,6 +54,10 @@ class Chunk:
     level: int | None = None
     parts: list[tuple[int, BBox]] = field(default_factory=list)  # continuation fragments
     type_locked: bool = False       # type set by the structure model; heuristics must not override
+    rows: list[list[str]] | None = None     # table cells, exact text
+    labels: list[str] = field(default_factory=list)   # text found inside a figure
+    caption_id: str | None = None   # caption chunk that belongs to this table/figure
+    detection: str | None = None    # how a table/figure was found
 
     @property
     def width(self) -> float:
@@ -67,6 +73,8 @@ class PageInfo:
     image_area: float = 0.0         # share of the page covered by images
     scanned: bool = False
     complex: bool = False
+    tables: int = 0
+    figures: int = 0
     chunk_ids: list[str] = field(default_factory=list)
 
 
@@ -173,6 +181,12 @@ def extract_page(page: pymupdf.Page, number: int) -> tuple[PageInfo, list[Chunk]
         flush()
     info.image_area = min(1.0, image_area / (info.width * info.height))
     info.scanned = sum(len(c.text) for c in chunks) < 20 and info.image_area > 0.5
+    if not info.scanned:
+        from app.ingest.pdf_objects import detect_objects  # local import: pdf_objects uses Chunk
+        image_boxes = [tuple(b["bbox"]) for b in data["blocks"] if b["type"] == 1]
+        chunks = detect_objects(page, number, chunks, image_boxes)
+        info.tables = sum(c.type == "table" for c in chunks)
+        info.figures = sum(c.type == "figure" for c in chunks)
     return info, chunks
 
 
@@ -253,7 +267,7 @@ def reading_order(chunks: list[Chunk]) -> list[Chunk]:
 
 def count_columns(chunks: list[Chunk]) -> int:
     """Largest number of side-by-side text columns on the page."""
-    body = [c for c in chunks if c.lines >= 2]
+    body = [c for c in chunks if c.lines >= 2 and c.type not in OBJECT_TYPES]
     if len(body) < 2:
         return 1
     region = max(c.bbox[2] for c in body) - min(c.bbox[0] for c in body)
@@ -281,6 +295,8 @@ def body_font_size(chunks: list[Chunk]) -> float:
 def classify(chunks: list[Chunk], pages: dict[int, PageInfo], body: float) -> None:
     in_references = False
     for c in chunks:
+        if c.type in OBJECT_TYPES:
+            continue
         text = c.text
         short = len(text) < 200 and c.lines <= 3
         bigger = c.size >= body + HEADING_DELTA
@@ -307,6 +323,27 @@ def classify(chunks: list[Chunk], pages: dict[int, PageInfo], body: float) -> No
             c.level = min(rank, 4)
 
 
+def link_captions(chunks: list[Chunk]) -> None:
+    """Attach each table/figure to its nearest matching caption on the page."""
+    captions = [c for c in chunks if c.type == "caption"]
+    taken: set[str] = set()
+    for obj in (c for c in chunks if c.type in OBJECT_TYPES):
+        best, best_gap = None, 80.0
+        for cap in captions:
+            is_table_caption = cap.text.lower().startswith("table")
+            if cap.id in taken or is_table_caption != (obj.type == "table"):
+                continue
+            overlap = min(cap.bbox[2], obj.bbox[2]) - max(cap.bbox[0], obj.bbox[0])
+            if overlap < 0.3 * min(cap.width, obj.width):
+                continue
+            gap = max(cap.bbox[1] - obj.bbox[3], obj.bbox[1] - cap.bbox[3], 0.0)
+            if gap < best_gap:
+                best, best_gap = cap, gap
+        if best is not None:
+            obj.caption_id = best.id
+            taken.add(best.id)
+
+
 # ----------------------------------------------------------------------------- continuation merge
 
 
@@ -330,7 +367,7 @@ def merge_continuations(chunks: list[Chunk]) -> list[Chunk]:
         out.append(c)
         if c.type == "paragraph":
             last_para = c
-        elif c.type not in ("caption", "footnote"):
+        elif c.type not in ("caption", "footnote", "table", "figure"):
             last_para = None        # a heading, list or reference ends the paragraph for good
     return out
 
@@ -401,8 +438,9 @@ def analyse(doc: pymupdf.Document, reorder=None) -> ParsedDocument:
         info.columns = count_columns(chunks)
         page_chunks = reading_order(chunks)
         classify(page_chunks, by_number, body)
-        info.complex = (
-            info.columns > 2 or info.image_area > 0.02 or any(c.type == "caption" for c in page_chunks)
+        link_captions(page_chunks)
+        info.complex = bool(
+            info.columns > 2 or info.tables or info.figures or any(c.type == "caption" for c in page_chunks)
         )
         if reorder is not None and info.complex and len(page_chunks) > 1:
             try:

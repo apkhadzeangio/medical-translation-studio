@@ -29,13 +29,23 @@ Return ONLY JSON:
   boxes, captions and footnotes after the paragraph they interrupt).
 - "drop": ids that are page furniture only: running headers, footers, page numbers, watermarks.
 - Every id must appear exactly once, either in "order" or in "drop". Never invent ids.
-- "types": only for ids whose guessed type is wrong. Allowed: heading, paragraph, list_item,
-  caption, footnote, reference, other.
+- "types": only for text ids whose guessed type is wrong. Allowed: heading, paragraph, list_item,
+  caption, footnote, reference, other. Tables and figures keep their type.
+- Place a table or figure next to its caption, where a reader would look at it.
 - Do not return any chunk text."""
 
 
 class StructureError(ValueError):
     pass
+
+
+def _preview(c: Chunk) -> str:
+    if c.type == "table":
+        cells = " | ".join(cell for cell in (c.rows or [[]])[0] if cell)
+        return f"[table, {len(c.rows or [])} rows] {cells}"[:PREVIEW_CHARS]
+    if c.type == "figure":
+        return f"[figure] {' / '.join(c.labels)}"[:PREVIEW_CHARS]
+    return c.text[:PREVIEW_CHARS]
 
 
 def validate(answer: object, ids: list[str]) -> tuple[list[str], dict[str, str], list[str]]:
@@ -65,7 +75,7 @@ def make_reorder(gateway: LLMGateway, project_id: uuid.UUID | None = None, *, dp
     def reorder(page: pymupdf.Page, info: PageInfo, chunks: list[Chunk]) -> list[Chunk] | None:
         png = page.get_pixmap(dpi=dpi).tobytes("png")
         listing = [
-            {"id": c.id, "text": c.text[:PREVIEW_CHARS], "bbox": [round(v) for v in c.bbox], "type": c.type}
+            {"id": c.id, "text": _preview(c), "bbox": [round(v) for v in c.bbox], "type": c.type}
             for c in chunks
         ]
         messages = [
@@ -82,7 +92,7 @@ def make_reorder(gateway: LLMGateway, project_id: uuid.UUID | None = None, *, dp
         by_id = {c.id: c for c in chunks}
         out = [by_id[i] for i in order]
         for chunk_id, kind in types.items():
-            if chunk_id in order:
+            if chunk_id in order and by_id[chunk_id].type not in ("table", "figure"):
                 by_id[chunk_id].type = kind
                 by_id[chunk_id].type_locked = True
         return out
