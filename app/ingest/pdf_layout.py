@@ -626,7 +626,15 @@ def review_structure(parsed: ParsedDocument) -> None:
         if c.type == "table":
             rows = c.rows or []
             cells = [cell for row in rows for cell in row]
-            full = sum(1 for row in rows if sum(bool(cell) for cell in row) >= 2)
+            occupied = {(r, col) for r, row in enumerate(rows) for col, cell in enumerate(row) if cell}
+            for span in c.spans:
+                r0, r1 = span["row_start"], span["row_end"]
+                c0, c1 = span["col_start"], span["col_end"]
+                if (r0, c0) in occupied:
+                    occupied.update((r, col) for r in range(max(0, r0), min(len(rows), r1 + 1))
+                                    for col in range(max(0, c0), min(len(rows[r]), c1 + 1)))
+            full = sum(sum((r, col) in occupied for col in range(len(row))) >= 2
+                       for r, row in enumerate(rows))
             broken = [cell for cell in cells if re.fullmatch(r"[()\[\]?]+", cell.strip())
                       or cell.count("(") != cell.count(")")]       # text cut through the middle
             if rows and (full < 0.6 * len(rows) or len(broken) >= 2):
@@ -732,8 +740,6 @@ def analyse(doc: pymupdf.Document, reorder=None) -> ParsedDocument:
         info.columns = count_columns(chunks)
         notes: list[str] = []
         page_chunks = reading_order(chunks, notes)
-        if notes:
-            uncertain_order.append(info.number)
         classify(page_chunks, by_number, body)
         page_chunks = link_captions(page_chunks, body)
         info.complex = bool(
@@ -749,6 +755,9 @@ def analyse(doc: pymupdf.Document, reorder=None) -> ParsedDocument:
             if improved is not None:
                 dropped += len(page_chunks) - len(improved)
                 page_chunks = improved
+                notes.clear()       # the accepted order replaces the uncertain deterministic fallback
+        if notes:
+            uncertain_order.append(info.number)
         info.chunk_ids = [c.id for c in page_chunks]
         ordered += page_chunks
 

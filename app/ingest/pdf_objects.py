@@ -442,19 +442,29 @@ def find_tables(page: pymupdf.Page, number: int, drawings: list[dict], clusters:
 
     edges = _horizontal_edges(drawings)
     panels = [s.panel for s in sections]
-    # inside a framed panel a table is a group of shaded bands; the frame itself is not a table
+
+    def eligible(region: BBox) -> bool:
+        if any(_intersection(region, p) > 0.5 * _area(region) for p in panels):
+            # A captioned table may use borders or booktabs rules without any shading.
+            # Keep its inner regions eligible, while excluding the enclosing panel frame.
+            return any(s.is_table and _inside(region, s.bbox, 3.0)
+                       and _area(region) < 0.95 * _area(s.panel) for s in sections)
+        return True
+
+    # Inside a panel tables may have shaded bands, rules, or a full grid.
     bars = [f for f in fills if any(_center_in(s.caption.bbox, f, pad=0.0) for s in sections)]
     banded = [g for s in sections
               for g in _components([f for f in fills if f not in bars and _inside(f, s.bbox, 3.0)
                                     and _area(f) < 0.8 * _area(s.bbox)])]
-    regions = [(c, "bands") for c in clusters if c not in panels] + [(g, "bands") for g in banded] \
-        + [(r, "rules") for r in _rule_stacks(drawings) if not any(_center_in(r, p, pad=0.0) for p in panels)]
+    regions = [(c, "bands") for c in clusters if c not in panels and eligible(c)] \
+        + [(g, "bands") for g in banded] \
+        + [(r, "rules") for r in _rule_stacks(drawings) if eligible(r)]
     for region, how in regions:
         built = build_table(page, region, edges)
         if built:
             add(region, built[0], how, built[1], built[2])
     for bbox, rows in _grid_tables(page):
-        if not any(_intersection(bbox, p) > 0.5 * _area(bbox) for p in panels):
+        if eligible(bbox):
             add(bbox, rows, "grid")
     found.sort(key=lambda t: (t.bbox[1], t.bbox[0]))
     for i, t in enumerate(found):

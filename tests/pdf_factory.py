@@ -273,6 +273,24 @@ def build_framed_diagram() -> bytes:
 STENOSIS = [["% Stenosis (diameter)", "% Area reduction"], ["30", "50"], ["50", "75"], ["70", "90"]]
 
 
+def build_ruled_panel_table(grid: bool) -> bytes:
+    """A captioned table inside a large frame, with no shaded table cells."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=W, height=H)
+    _frame(page, (47, 88, 548, 520), "Table 17.1|Invented diameter and area reduction.")
+    for y in ([110, 128, 146, 164, 182] if grid else [110, 128, 182]):
+        page.draw_line((53, y), (300, y), width=0.5)
+    if grid:
+        for x in [53, 175, 300]:
+            page.draw_line((x, 110), (x, 182), width=0.5)
+    rows = [["Diameter", "Area"], ["30", "50"], ["50", "75"], ["70", "90"]]
+    for r, row in enumerate(rows):
+        for c, text in enumerate(row):
+            page.insert_text((65 + c * 122, 122 + r * 18), text, fontsize=9,
+                             fontname="hebo" if r == 0 else "helv")
+    return doc.tobytes()
+
+
 def build_panel_table_with_charts() -> bytes:
     """A framed panel: a table beside a formula box, then a captioned chart with axis numbers."""
     doc = pymupdf.open()

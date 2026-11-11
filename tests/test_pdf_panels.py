@@ -5,6 +5,7 @@ All PDFs are synthetic (tests/pdf_factory.py); no page of the book is in the rep
 import hashlib
 
 import pymupdf
+import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -129,6 +130,16 @@ def test_table_in_a_panel_keeps_its_rows_and_leaves_the_chart_alone():
     assert codes(parsed, "error") == []
 
 
+@pytest.mark.parametrize("grid", [False, True])
+def test_unshaded_ruled_table_inside_a_captioned_frame(grid):
+    parsed = analyse_bytes(f.build_ruled_panel_table(grid))
+    tables = [c for c in parsed.chunks if c.type == "table"]
+    assert len(tables) == 1
+    assert tables[0].rows == [["Diameter", "Area"], ["30", "50"], ["50", "75"], ["70", "90"]]
+    assert tables[0].caption_id is not None
+    assert codes(parsed, "error") == []
+
+
 # ----------------------------------------------------------------------------- warnings and the translation gate
 
 
@@ -156,6 +167,41 @@ def test_sound_structure_reports_nothing():
     parsed = _parsed([_chunk("paragraph", "Plain text."), caption, table])
     review_structure(parsed)
     assert parsed.issues == []
+
+
+def test_merged_table_cells_are_complete_when_the_span_covers_them():
+    table = _chunk("table", rows=[["Category", "Description"], ["A", "One"], ["", "Two"],
+                                 ["", "Three"], ["", "Four"]], caption_id="cap",
+                   spans=[{"row_start": 1, "row_end": 4, "col_start": 0, "col_end": 0}])
+    parsed = _parsed([table])
+    review_structure(parsed)
+    assert codes(parsed, "error") == []
+    table.spans = []
+    damaged = _parsed([table])
+    review_structure(damaged)
+    assert codes(damaged, "error") == ["table_structure"]
+
+
+@pytest.mark.parametrize("outcome", ["accepted", "declined", "failed"])
+def test_only_accepted_model_reordering_resolves_fallback_uncertainty(monkeypatch, outcome):
+    from app.ingest import pdf_layout
+
+    original = pdf_layout.reading_order
+
+    def uncertain(chunks, notes=None):
+        result = original(chunks)
+        if notes is not None:
+            notes.append("uncertain")
+        return result
+
+    def reorder(page, info, chunks):
+        if outcome == "failed":
+            raise RuntimeError("unavailable")
+        return list(chunks) if outcome == "accepted" else None
+
+    monkeypatch.setattr(pdf_layout, "reading_order", uncertain)
+    parsed = analyse_bytes(f.build_framed_diagram(), reorder)
+    assert ("reading_order" in codes(parsed, "error")) == (outcome != "accepted")
 
 
 def _document(session, data, name, meta=None):
