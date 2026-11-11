@@ -45,6 +45,8 @@ class Worker:
         self.name = name or f"{socket.gethostname()}:{os.getpid()}:{threading.get_ident()}"
         self.poll_seconds = poll_seconds
         self.stop_event = threading.Event()
+        self.loop_errors = 0              # consecutive failures of the loop itself (not of a job)
+        self.last_loop_error: str | None = None
 
     def run_once(self) -> str | None:
         """Run one job. Returns its resulting status, or None if nothing was runnable."""
@@ -74,15 +76,27 @@ class Worker:
         return "done"
 
     def run_forever(self) -> None:
+        """Poll until stopped. An error outside a handler (database restarting, schema not
+        migrated yet) must not end the thread: it is logged and the loop tries again."""
         last_sweep = 0.0
         while not self.stop_event.is_set():
-            if time.monotonic() - last_sweep > 60:
-                with Session(self.engine) as session:
-                    recovered = jobs.requeue_stale(session, STALE_AFTER_SECONDS)
-                if recovered:
-                    log.warning("requeued %s job(s) left running by a lost worker", recovered)
-                last_sweep = time.monotonic()
-            if self.run_once() is None:
+            try:
+                if time.monotonic() - last_sweep > 60:
+                    with Session(self.engine) as session:
+                        recovered = jobs.requeue_stale(session, STALE_AFTER_SECONDS)
+                    if recovered:
+                        log.warning("requeued %s job(s) left running by a lost worker", recovered)
+                    last_sweep = time.monotonic()
+                idle = self.run_once() is None
+            except Exception as exc:  # noqa: BLE001 - keep polling whatever the queue throws
+                self.loop_errors += 1
+                self.last_loop_error = type(exc).__name__
+                if self.loop_errors == 1 or self.loop_errors % 20 == 0:
+                    log.exception("worker loop error #%s; retrying", self.loop_errors)
+                self.stop_event.wait(min(60.0, self.poll_seconds * 2 ** min(self.loop_errors, 5)))
+                continue
+            self.loop_errors, self.last_loop_error = 0, None
+            if idle:
                 self.stop_event.wait(self.poll_seconds)
 
     def stop(self) -> None:

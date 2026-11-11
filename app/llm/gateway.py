@@ -24,6 +24,7 @@ from app.config import Settings
 from app.models import LLMCall, Project
 
 MILLION = Decimal(1_000_000)
+TRUNCATED = "answer cut off at the output token limit (raise LLM_MAX_OUTPUT_TOKENS or lower TRANSLATE_CHUNK_WORDS)"
 
 
 class LLMError(RuntimeError):
@@ -159,6 +160,8 @@ class LLMGateway:
             body: dict[str, Any] = {"model": model, "messages": messages, **(extra or {})}
             if use_response_format:
                 body["response_format"] = {"type": "json_object"}
+            if self.settings.llm_max_output_tokens and "max_completion_tokens" not in body:
+                body["max_completion_tokens"] = self.settings.llm_max_output_tokens
             log = {"project_id": project_id, "job_id": job_id, "stage": stage, "model": model,
                    "key_label": key.label}
             started = self.clock()
@@ -179,6 +182,8 @@ class LLMGateway:
                 if result is not None:
                     return result
                 last_error = problem
+                if problem == TRUNCATED:      # the same request would be cut off, and billed, again
+                    raise LLMError(f"{stage}: {problem}")
                 continue
             last_error = f"http {status}: {self._error_message(resp)}"
             self._log(**log, ok=False, error=last_error, started=started)
@@ -207,6 +212,7 @@ class LLMGateway:
         try:
             payload = resp.json()
             text = payload["choices"][0]["message"]["content"] or ""
+            truncated = payload["choices"][0].get("finish_reason") == "length"
         except (ValueError, KeyError, IndexError, TypeError):
             problem = "malformed provider response"
             self._log(**log, ok=False, error=problem, started=started)
@@ -221,7 +227,9 @@ class LLMGateway:
             + Decimal(tokens_out) * Decimal(str(price["output"]))
         ) / MILLION
         data, problem = None, None
-        if json_mode:
+        if truncated:
+            problem = TRUNCATED
+        elif json_mode:
             try:
                 data = parse_json(text)
             except json.JSONDecodeError:

@@ -174,3 +174,39 @@ def test_upload_parse_and_resume_after_crash(clean_jobs, tmp_path, monkeypatch):
         last = [s.get(Block, s.get(Segment, c.segment_ids[-1]).block_id).type for c in chunks[:-1]]
         assert "heading" not in last
         assert s.scalar(select(func.count()).select_from(Document).where(Document.id == uuid.UUID(doc_id))) == 1
+
+
+def test_worker_loop_survives_a_broken_queue(clean_jobs, monkeypatch):
+    """A database error while polling (schema missing, connection lost) must not kill the thread."""
+    import threading
+    import time
+
+    ran = []
+    worker = Worker(clean_jobs, {"noop_loop": lambda session, job: ran.append(job.id)}, poll_seconds=0.01)
+    real_claim, state = jobs.claim, {"fail": True}
+
+    def flaky_claim(*args, **kwargs):
+        if state["fail"]:
+            raise RuntimeError("relation \"jobs\" does not exist")
+        return real_claim(*args, **kwargs)
+
+    monkeypatch.setattr(jobs, "claim", flaky_claim)
+    thread = threading.Thread(target=worker.run_forever, daemon=True)
+    thread.start()
+    try:
+        deadline = time.monotonic() + 5
+        while worker.loop_errors == 0 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert worker.loop_errors >= 1 and worker.last_loop_error == "RuntimeError" and thread.is_alive()
+
+        with Session(clean_jobs) as s:
+            job_id = jobs.enqueue(s, "noop_loop", key()).id
+            s.commit()
+        state["fail"] = False                                   # the database is back
+        deadline = time.monotonic() + 10
+        while not ran and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert ran == [job_id] and worker.last_loop_error is None
+    finally:
+        worker.stop()
+        thread.join(timeout=5)

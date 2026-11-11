@@ -1,3 +1,4 @@
+import logging
 import secrets
 import threading
 from contextlib import asynccontextmanager
@@ -30,12 +31,20 @@ async def lifespan(app: FastAPI):
     if settings.embedded_worker:
         from app.db import get_engine
         from app.worker import Worker, default_handlers
+        if not logging.getLogger("mts").handlers:      # uvicorn configures only its own loggers
+            handler = logging.StreamHandler()
+            handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+            logging.getLogger("mts").addHandler(handler)
+            logging.getLogger("mts").setLevel(logging.INFO)
         for n in range(max(1, settings.worker_threads)):
             worker = Worker(get_engine(), default_handlers())
-            threading.Thread(target=worker.run_forever, name=f"mts-worker-{n}", daemon=True).start()
-            workers.append(worker)
+            thread = threading.Thread(target=worker.run_forever, name=f"mts-worker-{n}", daemon=True)
+            thread.start()
+            workers.append((worker, thread))
+        logging.getLogger("mts.worker").info("started %s embedded worker thread(s)", len(workers))
+    app.state.workers = workers
     yield
-    for worker in workers:
+    for worker, _ in workers:
         worker.stop()
 
 
