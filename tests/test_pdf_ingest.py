@@ -92,7 +92,7 @@ def test_superscripts_and_ligatures_in_lines():
     line = {"spans": [{**span, "text": "arterial ﬂow in disease"},
                       {**span, "size": 6, "flags": 1, "text": "12,13"},
                       {**span, "text": " improves"}]}
-    assert _line_text(line) == ("arterial flow in disease<sup>12,13</sup> improves", 10.0, False)
+    assert _line_text(line) == ("arterial flow in disease<sup>12,13</sup> improves", 10.0, False, "Times")
     assert join_lines(["a well-", "known case", "of follow-", "Up and 5-", "10 mm"]) == \
         "a wellknown case of follow- Up and 5- 10 mm"
 

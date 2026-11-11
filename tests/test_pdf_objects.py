@@ -5,7 +5,6 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.ingest import pdf_objects
 from app.ingest.pdf_layout import analyse_bytes
 from app.ingest.store import store_parsed
 from app.models import Asset, Block, Document, Project, Segment
@@ -29,12 +28,10 @@ def test_table_is_one_block_with_exact_cells(grid):
     assert parsed.pages[0].tables == 1 and parsed.pages[0].complex
 
 
-def test_rule_based_fallback_when_grid_finder_sees_nothing(monkeypatch):
-    monkeypatch.setattr(pdf_objects, "_grid_tables", lambda page: [])
-    parsed = analyse_bytes(f.build_table(grid=False))
-    table = next(c for c in parsed.chunks if c.type == "table")
-    assert table.detection == "rules"
-    assert table.rows == f.TABLE
+def test_table_detection_route():
+    assert next(c for c in analyse_bytes(f.build_table(True)).chunks if c.type == "table").detection == "bands"
+    booktabs = next(c for c in analyse_bytes(f.build_table(False)).chunks if c.type == "table")
+    assert booktabs.detection == "rules" and booktabs.header_rows == 1 and booktabs.label == "2.1"
 
 
 def test_raster_figure_links_to_its_caption():

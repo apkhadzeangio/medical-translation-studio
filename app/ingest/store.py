@@ -13,7 +13,9 @@ from app.ingest.pdf_objects import render_region
 from app.models import Asset, Block, Chapter, Document, Segment
 from app.storage import Storage
 
-BLOCK_TYPES = {"heading", "paragraph", "list_item", "caption", "footnote", "reference", "table", "figure"}
+BLOCK_TYPES = {"heading", "paragraph", "list_item", "list", "caption", "footnote", "reference", "table", "figure",
+               "callout", "equation"}
+UNTRANSLATED = {"reference", "equation", "chapter_number"}   # kept as printed
 
 
 def source_hash(text: str) -> str:
@@ -78,9 +80,12 @@ def store_parsed(
         if chunk.type in ("table", "figure"):
             data = {"detection": chunk.detection, "caption_block_idx": block_idx.get(chunk.caption_id)}
             if chunk.type == "table":
-                data |= {"rows": chunk.rows, "cols": max(len(r) for r in chunk.rows)}
+                data |= {"rows": chunk.rows, "cols": max(len(r) for r in chunk.rows), "spans": chunk.spans,
+                         "header_rows": chunk.header_rows, "label": chunk.label,
+                         "continues_block_idx": block_idx.get(chunk.continues),
+                         "repeated_header_rows": chunk.repeated_header_rows}
             else:
-                data |= {"labels": chunk.labels}
+                data |= {"labels": chunk.labels, "label": chunk.label}
             if render:
                 png, width, height = render_region(pdf[chunk.page - 1], chunk.bbox)
                 key = f"{asset_prefix(document)}/{chunk.id}.png"
@@ -94,6 +99,12 @@ def store_parsed(
                 stats["assets"] += 1
         else:
             data |= {"font_size": round(chunk.size, 1), "bold": chunk.bold}
+            if chunk.items:
+                data["items"] = chunk.items
+            if chunk.note_of:
+                data["note_of_block_idx"] = block_idx.get(chunk.note_of)
+            if chunk.type not in BLOCK_TYPES:
+                data["role"] = chunk.type
 
         block = Block(
             document_id=document.id, chapter_id=chapter_id, idx=idx,
@@ -112,11 +123,13 @@ def store_parsed(
                                             source_text=cell, source_hash=source_hash(cell)))
                         stats["segments"] += 1
         elif chunk.type != "figure":
-            session.add(Segment(
-                block_id=block.id, chapter_id=chapter_id, idx=0, source_text=chunk.text,
-                source_hash=source_hash(chunk.text), translatable=chunk.type != "reference",
-            ))
-            stats["segments"] += 1
+            texts = chunk.items or [chunk.text]      # lists and callouts: one segment per line
+            for i, text in enumerate(texts):
+                session.add(Segment(
+                    block_id=block.id, chapter_id=chapter_id, idx=i, source_text=text,
+                    source_hash=source_hash(text), translatable=chunk.type not in UNTRANSLATED,
+                ))
+            stats["segments"] += len(texts)
 
     document.page_count = len(parsed.pages)
     document.status = "parsed"

@@ -26,7 +26,10 @@ import pymupdf
 BBox = tuple[float, float, float, float]
 
 LIGATURES = str.maketrans({"ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff", "ﬃ": "ffi", "ﬄ": "ffl", "­": ""})
-CAPTION_RE = re.compile(r"^(Figure|Fig\.?|Table|Box|Algorithm)\s+\d+[\w.\-]*", re.I)
+# "Table 17.1 Title" / "FIGURE 3 Title" are captions; "Table 17.1 is continued ..." is a sentence.
+CAPTION_RE = re.compile(r"^(?i:Figure|Fig\.?|Table|Box|Algorithm)\s+\d+[\w.\-]*(?=$|[.:]?\s+[A-Z0-9(]|\s*[—–:|])")
+LIST_RE = re.compile(r"^(?:\d{1,2}[.)]|[a-z][.)]|[•▪■●◦‣–-])\s+\S")
+NOTE_RE = re.compile(r"^(?:[*†‡§¶]|Note[s:.]|Abbreviations?\b|Source[s:.])")
 REFERENCE_RE = re.compile(r"^\[?\d{1,3}[\].]\s+[A-Z][\w'’\-]+,?\s+[A-Z]{1,3}\b")
 REFERENCES_HEADING_RE = re.compile(r"^(selected |key )?(references|bibliography)\b", re.I)
 CHAPTER_RE = re.compile(r"^(chapter|section|part)\s+(\d+|[ivxlc]+)\b", re.I)
@@ -37,6 +40,8 @@ SENTENCE_END = (".", "?", "!", ":", ";", "”", '"', ")", "]")
 MARGIN_BAND = 0.09      # top/bottom share of the page where running heads live
 MIN_GUTTER = 9.0        # points of clear horizontal space that count as a column gap
 OBJECT_TYPES = ("table", "figure")
+FIXED_TYPES = ("table", "figure", "callout")   # set by detection, never reclassified
+SIDE_BY_SIDE_GAP = 12.0  # points between two text runs on one row that makes them separate chunks
 HEADING_DELTA = 1.2     # points above body size that make a heading
 SPLIT_DELTA = 1.2       # font-size change that splits one PDF block into two chunks
 
@@ -58,6 +63,14 @@ class Chunk:
     labels: list[str] = field(default_factory=list)   # text found inside a figure
     caption_id: str | None = None   # caption chunk that belongs to this table/figure
     detection: str | None = None    # how a table/figure was found
+    font: str = ""
+    items: list[str] = field(default_factory=list)    # lines of a list or callout, one segment each
+    spans: list[dict] = field(default_factory=list)   # merged table cells
+    header_rows: int = 0
+    label: str | None = None        # "17.1" from the caption
+    continues: str | None = None    # id of the first fragment when a table continues on a later page
+    repeated_header_rows: int = 0   # leading rows that only repeat the first fragment's header
+    note_of: str | None = None      # table this note belongs to
 
     @property
     def width(self) -> float:
@@ -99,29 +112,38 @@ class ParsedDocument:
 # ----------------------------------------------------------------------------- extraction
 
 
-def _line_text(line: dict) -> tuple[str, float, bool]:
-    """One PDF line -> (text with <sup> markup, body font size, is bold)."""
+def _line_text(line: dict) -> tuple[str, float, bool, str]:
+    """One PDF line -> (text with <sup>/<sub> markup, body font size, is bold, dominant font)."""
+    spans = [sp for sp in line["spans"] if sp["text"]]
+    main = max(spans, key=lambda sp: (sp["size"], len(sp["text"])), default=None)
     out: list[str] = []
     sizes: list[tuple[float, int]] = []
+    fonts: Counter[str] = Counter()
     bold_chars = total = 0
-    for span in line["spans"]:
+    for span in spans:
         text = span["text"].translate(LIGATURES)
-        if not text:
-            continue
-        if span["flags"] & 1 and len(text.strip()) <= 12 and text.strip():
+        stripped = text.strip()
+        small = stripped and len(stripped) <= 12 and span is not main and span["size"] <= 0.87 * main["size"]
+        shift = span.get("origin", (0, 0))[1] - main.get("origin", (0, 0))[1]   # > 0 means lower on the page
+        if stripped and len(stripped) <= 12 and (span["flags"] & 1 or (small and shift <= -0.2 * main["size"])):
             # superscript: citation markers and exponents must not fuse with the word before
-            out.append(f"<sup>{text.strip()}</sup>")
+            out.append(f"<sup>{stripped}</sup>")
+            continue
+        if small and shift >= 0.1 * main["size"]:
+            out.append(f"<sub>{stripped}</sub>" + (" " if text.endswith(" ") else ""))
             continue
         out.append(text)
-        n = len(text.strip())
+        n = len(stripped)
         sizes.append((span["size"], n))
+        fonts[span["font"]] += n
         total += n
         if span["flags"] & 16 or "bold" in span["font"].lower():
             bold_chars += n
-    text = re.sub(r"[ \t ]+", " ", "".join(out)).strip()
+    text = re.sub(r"[ \t\u00a0]+", " ", "".join(out)).strip()
     weight = sum(n for _, n in sizes)
-    size = sum(s * n for s, n in sizes) / weight if weight else 0.0
-    return text, size, bool(total) and bold_chars / total > 0.6
+    size = sum(sz * n for sz, n in sizes) / weight if weight else 0.0
+    font = fonts.most_common(1)[0][0] if fonts else ""
+    return text, size, bool(total) and bold_chars / total > 0.6, font
 
 
 def join_lines(lines: list[str]) -> str:
@@ -151,33 +173,45 @@ def extract_page(page: pymupdf.Page, number: int) -> tuple[PageInfo, list[Chunk]
             x0, y0, x1, y1 = block["bbox"]
             image_area += max(0.0, x1 - x0) * max(0.0, y1 - y0)
             continue
-        group: list[tuple[str, float, bool, BBox]] = []
+        group: list[tuple[str, float, bool, BBox, str]] = []
 
         def flush(group=group):
             if not group:
                 return
-            text = join_lines([g[0] for g in group])
-            if text:
-                chunks.append(Chunk(
-                    id=f"p{number}c{len(chunks)}", page=number, bbox=_union([g[3] for g in group]),
-                    text=text, size=statistics.fmean(g[1] for g in group),
-                    bold=all(g[2] for g in group), lines=len(group),
-                ))
+            chunk = Chunk(
+                id=f"p{number}c{len(chunks)}", page=number, bbox=_union([g[3] for g in group]),
+                text=join_lines([g[0] for g in group]), size=statistics.fmean(g[1] for g in group),
+                bold=all(g[2] for g in group), lines=len(group),
+                font=Counter(g[4] for g in group).most_common(1)[0][0],
+            )
+            markers = [i for i, g in enumerate(group) if LIST_RE.match(g[0])]
+            if len(markers) >= 2 and markers[0] == 0:
+                # several marker lines in one block: a list; wrapped lines stay with their item
+                bounds = markers + [len(group)]
+                chunk.items = [join_lines([g[0] for g in group[a:b]]) for a, b in zip(bounds, bounds[1:], strict=False)]
+                chunk.text = "\n".join(chunk.items)
+                chunk.type = "list"
+            if chunk.text:
+                chunks.append(chunk)
             group.clear()
 
         for line in block.get("lines", []):
             if abs(line["dir"][0] - 1) > 0.01:   # rotated text (margin labels, watermarks)
                 continue
-            text, size, bold = _line_text(line)
+            text, size, bold, font = _line_text(line)
             if not text or not size:
                 continue
+            box = tuple(line["bbox"])
             if group:
                 prev = group[-1]
                 size_jump = abs(size - prev[1]) >= SPLIT_DELTA
                 bold_end = prev[2] and not bold and len(group) <= 2 and all(g[2] for g in group)
-                if size_jump or bold_end:
+                shared = min(box[3], prev[3][3]) - max(box[1], prev[3][1])
+                same_row = shared > 0.3 * min(box[3] - box[1], prev[3][3] - prev[3][1])
+                apart = same_row and box[0] - prev[3][2] > SIDE_BY_SIDE_GAP
+                if size_jump or bold_end or apart:
                     flush()
-            group.append((text, size, bold, tuple(line["bbox"])))
+            group.append((text, size, bold, box, font))
         flush()
     info.image_area = min(1.0, image_area / (info.width * info.height))
     info.scanned = sum(len(c.text) for c in chunks) < 20 and info.image_area > 0.5
@@ -258,7 +292,9 @@ def reading_order(chunks: list[Chunk]) -> list[Chunk]:
         rest = [c for c in chunks if c not in spanning]
         ordered: list[Chunk] = []
         for s in spanning:
-            above = [c for c in rest if (c.bbox[1] + c.bbox[3]) / 2 < s.bbox[1]]
+            # read before `s`: everything above it, and anything standing to its left on the same rows
+            above = [c for c in rest if (c.bbox[1] + c.bbox[3]) / 2 < s.bbox[1]
+                     or (c.bbox[2] <= s.bbox[0] and c.bbox[1] < s.bbox[3] and c.bbox[3] > s.bbox[1])]
             rest = [c for c in rest if c not in above]
             ordered += reading_order(above) + [s]
         return ordered + reading_order(rest)
@@ -267,7 +303,7 @@ def reading_order(chunks: list[Chunk]) -> list[Chunk]:
 
 def count_columns(chunks: list[Chunk]) -> int:
     """Largest number of side-by-side text columns on the page."""
-    body = [c for c in chunks if c.lines >= 2 and c.type not in OBJECT_TYPES]
+    body = [c for c in chunks if c.lines >= 2 and c.type not in FIXED_TYPES]
     if len(body) < 2:
         return 1
     region = max(c.bbox[2] for c in body) - min(c.bbox[0] for c in body)
@@ -292,18 +328,30 @@ def body_font_size(chunks: list[Chunk]) -> float:
     return weights.most_common(1)[0][0] if weights else 10.0
 
 
+def _is_equation(c: Chunk) -> bool:
+    text = re.sub(r"</?su[pb]>", " ", c.text)
+    return (c.lines == 1 and "=" in text and len(text) < 100 and not text.rstrip().endswith(".")
+            and len(re.findall(r"[A-Za-z]{4,}", text)) < 4)
+
+
 def classify(chunks: list[Chunk], pages: dict[int, PageInfo], body: float) -> None:
     in_references = False
     for c in chunks:
-        if c.type in OBJECT_TYPES:
+        if c.type in FIXED_TYPES:
             continue
         text = c.text
+        if c.items:
+            c.type = "reference" if in_references else "list"
+            continue
         short = len(text) < 200 and c.lines <= 3
         bigger = c.size >= body + HEADING_DELTA
         bold_head = c.bold and c.size >= body - 0.3 and len(text) < 120 and c.lines <= 2
         if CAPTION_RE.match(text):
             c.type = "caption"
-        elif short and (bigger or bold_head) and not text.rstrip().endswith((".", ",", ";")):
+        elif re.fullmatch(r"\d{1,3}", text.strip()) and c.size >= body + 4:
+            c.type = "chapter_number"
+        elif short and (bigger or bold_head) and not text.rstrip().endswith((".", ",", ";")) \
+                and re.search(r"[A-Za-z]", text):
             c.type = "heading"
             in_references = bool(REFERENCES_HEADING_RE.match(text))
         elif (c.size <= body - 1.5 and c.bbox[1] >= pages[c.page].height * 0.8
@@ -311,22 +359,34 @@ def classify(chunks: list[Chunk], pages: dict[int, PageInfo], body: float) -> No
             c.type = "footnote"
         elif in_references or REFERENCE_RE.match(text):
             c.type = "reference"
+        elif _is_equation(c):
+            c.type = "equation"
         elif BULLET_RE.match(text):
             c.type = "list_item"
         else:
             c.type = "paragraph"
-    sizes = sorted({round(c.size) for c in chunks if c.type == "heading" and c.size >= body + HEADING_DELTA},
-                   reverse=True)
+    # Heading level = rank of the heading's style. Clearly larger type ranks higher; styles of
+    # about the same size rank in the order the document first uses them.
+    styles: list[tuple[str, float]] = []
     for c in chunks:
-        if c.type == "heading":
-            rank = sizes.index(round(c.size)) + 1 if round(c.size) in sizes else len(sizes) + 1
-            c.level = min(rank, 4)
+        style = (c.font, round(c.size * 2) / 2)
+        if c.type == "heading" and style not in styles:
+            styles.append(style)
+    styles.sort(key=lambda st: -int(st[1]))          # stable: first appearance breaks ties
+    for c in chunks:
+        c.level = min(styles.index((c.font, round(c.size * 2) / 2)) + 1, 4) if c.type == "heading" else None
 
 
-def link_captions(chunks: list[Chunk]) -> None:
-    """Attach each table/figure to its nearest matching caption on the page."""
+def link_captions(chunks: list[Chunk], body: float) -> list[Chunk]:
+    """Attach tables/figures to their captions and notes, and keep each group together in the order."""
     captions = [c for c in chunks if c.type == "caption"]
     taken: set[str] = set()
+    out = list(chunks)
+
+    def move(chunk: Chunk, anchor: Chunk, after: bool) -> None:
+        out.remove(chunk)
+        out.insert(out.index(anchor) + (1 if after else 0), chunk)
+
     for obj in (c for c in chunks if c.type in OBJECT_TYPES):
         best, best_gap = None, 80.0
         for cap in captions:
@@ -342,6 +402,38 @@ def link_captions(chunks: list[Chunk]) -> None:
         if best is not None:
             obj.caption_id = best.id
             taken.add(best.id)
+            number = re.search(r"\d+[\w.\-]*", best.text)
+            obj.label = number.group(0).rstrip(".") if number else None
+            move(best, obj, after=best.bbox[1] > obj.bbox[1])
+        if obj.type != "table":
+            continue
+        for note in chunks:                      # a note printed directly under the table
+            gap = note.bbox[1] - obj.bbox[3]
+            overlap = min(note.bbox[2], obj.bbox[2]) - max(note.bbox[0], obj.bbox[0])
+            if (note.type in ("paragraph", "footnote") and -2 <= gap <= 16 and overlap > 0.3 * note.width
+                    and (note.size <= body - 0.8 or NOTE_RE.match(note.text))):
+                note.type, note.type_locked, note.note_of = "footnote", True, obj.id
+                anchor = out[out.index(obj) + 1] if obj.caption_id and best is not None and \
+                    best.bbox[1] > obj.bbox[1] else obj
+                move(note, anchor, after=True)
+                break
+    return out
+
+
+def link_continued_tables(chunks: list[Chunk]) -> None:
+    """A table whose caption number was already used continues the earlier table."""
+    first: dict[str, Chunk] = {}
+    for t in (c for c in chunks if c.type == "table" and c.label):
+        head = first.setdefault(t.label, t)
+        if head is t or not t.rows or not head.rows:
+            continue
+        t.continues = head.id
+        repeated = 0
+        for mine, theirs in zip(t.rows, head.rows, strict=False):
+            if mine != theirs or repeated >= max(head.header_rows, 1):
+                break
+            repeated += 1
+        t.repeated_header_rows = repeated
 
 
 # ----------------------------------------------------------------------------- continuation merge
@@ -367,7 +459,7 @@ def merge_continuations(chunks: list[Chunk]) -> list[Chunk]:
         out.append(c)
         if c.type == "paragraph":
             last_para = c
-        elif c.type not in ("caption", "footnote", "table", "figure"):
+        elif c.type not in ("caption", "footnote", "table", "figure", "callout"):
             last_para = None        # a heading, list or reference ends the paragraph for good
     return out
 
@@ -396,6 +488,12 @@ def find_chapters(doc: pymupdf.Document, chunks: list[Chunk], page_count: int) -
             if nxt is not None and nxt.type == "heading" and len(c.text) < 20 and n < len(chosen):
                 title = f"{c.text}: {nxt.text}"      # "CHAPTER 7" followed by the real title
             starts.append((title, c.page, i))
+    if not starts:
+        for i, c in enumerate(chunks):               # a large chapter numeral next to the title
+            if c.type == "chapter_number":
+                near = [h for h in chunks[max(0, i - 1): i + 3] if h.type == "heading" and h.page == c.page]
+                title = f"{c.text.strip()} {near[0].text}" if near else f"Chapter {c.text.strip()}"
+                starts.append((title, c.page, max(0, i - 1) if near and chunks[i - 1] is near[0] else i))
     if not starts:
         starts = [("Document", 1, 0)]
     elif starts[0][2] > 0:
@@ -438,9 +536,10 @@ def analyse(doc: pymupdf.Document, reorder=None) -> ParsedDocument:
         info.columns = count_columns(chunks)
         page_chunks = reading_order(chunks)
         classify(page_chunks, by_number, body)
-        link_captions(page_chunks)
+        page_chunks = link_captions(page_chunks, body)
         info.complex = bool(
-            info.columns > 2 or info.tables or info.figures or any(c.type == "caption" for c in page_chunks)
+            info.columns > 2 or info.tables or info.figures
+            or any(c.type in ("caption", "callout") for c in page_chunks)
         )
         if reorder is not None and info.complex and len(page_chunks) > 1:
             try:
@@ -462,6 +561,7 @@ def analyse(doc: pymupdf.Document, reorder=None) -> ParsedDocument:
             c.type = locked[c.id]
             c.level = (c.level or 3) if c.type == "heading" else None
     merged = merge_continuations(ordered)
+    link_continued_tables(merged)
     chapters = find_chapters(doc, merged, len(pages))
     return ParsedDocument(pages=pages, chunks=merged, chapters=chapters, body_size=body,
                           dropped=dropped, warnings=warnings)

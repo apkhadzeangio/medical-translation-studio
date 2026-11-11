@@ -17,6 +17,8 @@ from app.llm.gateway import LLMGateway
 
 ALLOWED_TYPES = {"heading", "paragraph", "list_item", "caption", "footnote", "reference", "other"}
 PREVIEW_CHARS = 160
+# found from the page geometry; the model may move these but not rename them
+STRUCTURAL_TYPES = {"table", "figure", "callout", "list", "equation", "chapter_number"}
 
 SYSTEM = """You analyse the layout of one page of an English medical textbook.
 You receive the page image and a JSON list of text chunks already extracted from it, each with
@@ -92,7 +94,7 @@ def make_reorder(gateway: LLMGateway, project_id: uuid.UUID | None = None, *, dp
         by_id = {c.id: c for c in chunks}
         out = [by_id[i] for i in order]
         for chunk_id, kind in types.items():
-            if chunk_id in order and by_id[chunk_id].type not in ("table", "figure"):
+            if chunk_id in order and by_id[chunk_id].type not in STRUCTURAL_TYPES:
                 by_id[chunk_id].type = kind
                 by_id[chunk_id].type_locked = True
         return out
