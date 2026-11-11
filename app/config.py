@@ -13,9 +13,11 @@ class Settings(BaseSettings):
 
     storage_dir: str = "./data"  # local file storage for source files and extracted assets
     max_upload_mb: int = 500
+    export_font: str = "Sylfaen"   # Georgian-capable font named in exported documents
     # Run the job worker inside the API process. Needed while storage is a local directory,
     # because a separate worker service would not see the files the API saved.
     embedded_worker: bool = False
+    worker_threads: int = 2   # embedded workers; each translates one chunk at a time
 
     # LLM gateway. Any OpenAI-compatible endpoint; several keys are used round-robin.
     llm_base_url: str = "https://api.openai.com/v1"
@@ -28,6 +30,16 @@ class Settings(BaseSettings):
     llm_concurrency_per_key: int = 4
     llm_timeout_seconds: float = 600
     translate_chunk_words: int = 1200   # source words per model call
+    # Ask the model to double-check the layout of complex pages while parsing. Off by default:
+    # it costs one image request per page with a figure or table, and the rule-based parser
+    # alone already scores 100% on the reference chapter.
+    pdf_structure_model: bool = False
+    llm_review_model: str | None = None   # medical review; defaults to llm_model
+    # Independent QA. Use a model from a different vendor where possible; a model checking
+    # its own work misses its own mistakes. Leave llm_qa_model empty to skip the model QA stage.
+    llm_qa_model: str | None = None
+    llm_qa_base_url: str | None = None    # only if the QA model lives at another endpoint
+    llm_qa_api_keys: str = ""
 
     @property
     def llm_key_list(self) -> list[str]:

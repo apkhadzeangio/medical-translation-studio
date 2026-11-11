@@ -69,7 +69,8 @@ def chapter(migrated_db, monkeypatch):
     data = FIXTURE.read_bytes()
     with Session(migrated_db) as s, pymupdf.open(stream=data, filetype="pdf") as pdf:
         s.execute(update(Job).where(Job.status.in_(("queued", "running"))).values(status="cancelled"))
-        project = Project(name="translate", budget_usd=Decimal("50"))
+        project = Project(name="translate", budget_usd=Decimal("50"),
+                          settings={"auto_review": False, "auto_qa": False})
         s.add(project)
         s.flush()
         doc = Document(project_id=project.id, filename="c.pdf", format="pdf", storage_key="k",
@@ -112,7 +113,7 @@ def test_chapter_is_translated_end_to_end(chapter):
     assert plan["chunks"] >= 3 and plan["jobs_queued"] == plan["chunks"] and plan["estimated_cost_usd"] > 0
     assert again["chunks"] == plan["chunks"]                     # planning twice adds no jobs
 
-    assert run_all(engine) == ["done"] * plan["chunks"]
+    assert set(run_all(engine)) == {"done"}
     with Session(engine) as s:
         translatable = s.scalar(select(func.count()).select_from(Segment).where(
             Segment.chapter_id == chapter_id, Segment.translatable))
@@ -196,7 +197,7 @@ def test_partial_answer_saves_nothing_and_retry_only_pays_for_the_rest(chapter):
             Segment.chapter_id == chapter_id, Segment.translatable))
     handler, seen = fake_model()
     install(handler)
-    assert run_all(engine) == ["done"]
+    assert set(run_all(engine)) == {"done"}
     assert len(seen) == 1 and len(seen[0]["segments"]) <= total - len(half)
     with Session(engine) as s:
         assert s.scalar(select(func.count()).select_from(SegmentVersion).join(Segment).where(
@@ -211,9 +212,12 @@ def test_budget_stop_pauses_jobs(chapter):
         translate.plan_chapter(s, chapter_id, max_words=400)
         s.commit()
     results = run_all(engine)
-    assert results.count("done") == 2 and set(results[2:]) == {"deferred"}
+    assert "deferred" in results and "failed" not in results
     with Session(engine) as s:
-        paused = list(s.scalars(select(Job).where(Job.project_id == project_id, Job.status == "queued")))
+        assert s.scalar(select(func.count()).select_from(LLMCall).where(LLMCall.project_id == project_id)) == 2
+    with Session(engine) as s:
+        paused = list(s.scalars(select(Job).where(Job.project_id == project_id, Job.status == "queued",
+                                                  Job.kind == "translate_chunk")))
         assert paused and all("budget" in j.last_error and j.attempts == 0 for j in paused)
 
 

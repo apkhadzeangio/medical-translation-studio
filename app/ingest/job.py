@@ -25,7 +25,7 @@ def ingest_document(session: Session, job: Job) -> None:
 
     reorder = None
     settings = get_settings()
-    if settings.llm_key_list and job.payload.get("use_structure_model", True):
+    if settings.llm_key_list and job.payload.get("use_structure_model", settings.pdf_structure_model):
         from app.ingest.pdf_structure import make_reorder
         from app.llm.gateway import LLMGateway
         reorder = make_reorder(LLMGateway(session.get_bind(), settings), document.project_id)

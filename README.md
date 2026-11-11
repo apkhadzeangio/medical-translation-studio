@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-8 — translation stage.** A parsed chapter can be translated end to end; so far only against a simulated model.
+Status: **PR-11 — ready to deploy.** Console, pipeline and export work end to end against a stand-in model; a real model has not been called yet.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
@@ -38,8 +38,13 @@ The earlier one-file pilot lives in `tools/spike/`.
 | GET | `/api/projects/{id}/tm` | translation-memory entry counts by origin |
 | POST | `/api/chapters/{id}/translate` | queue a chapter; returns chunks, words and a rough cost estimate |
 | POST | `/api/documents/{id}/translate` | queue every chapter of a parsed document |
+| POST | `/api/chapters/{id}/review` | queue the medical review (normally automatic) |
+| POST | `/api/chapters/{id}/qa` | queue the independent QA (needs `LLM_QA_MODEL`) |
 | GET | `/api/chapters/{id}/segments` | source and translation side by side with open QA flags |
+| GET | `/api/segments/{id}/versions` | every stage's text and every QA finding for one segment |
 | GET | `/api/projects/{id}/cost` | budget, amount spent, tokens and cost per stage |
+| GET | `/api/chapters/{id}/export?format=docx\|pdf&mode=ka\|bilingual` | one chapter as a file |
+| GET | `/api/documents/{id}/export?format=…&mode=…` | all chapters in one file |
 
 `/api/*` requires `Authorization: Bearer $API_TOKEN` when `API_TOKEN` is set.
 
@@ -72,6 +77,44 @@ The earlier one-file pilot lives in `tools/spike/`.
    A critical finding marks the segment `flagged` and keeps it out of the translation memory.
 
 References, equations and the chapter numeral are not sent for translation.
+
+## Export
+
+`app/export/`:
+
+- **`mode=ka`** — the Georgian book: headings by level, justified paragraphs, lists, callouts as
+  shaded boxes, tables with merged cells, figures taken from the source PDF, captions, notes.
+  A table continued over several pages is joined into one, with its header printed once.
+  References and equations are printed as in the source. `<sup>`/`<sub>` become real
+  superscript and subscript.
+- **`mode=bilingual`** — a landscape review table, one row per segment: page, English, Georgian,
+  open QA findings; flagged rows are tinted.
+- A segment with no translation yet is printed in English on a yellow background (and left
+  empty in the bilingual table), so a gap is never mistaken for finished text.
+- **PDF** is the DOCX converted by LibreOffice, so both always show the same content. The
+  Docker image installs LibreOffice and Georgian-capable fonts; without it the API answers 501.
+
+`EXPORT_FONT` (default Sylfaen) is the font named in the DOCX. Export is generated on request;
+a whole book will take a while and will move to a background job with the web console.
+
+## Review and QA
+
+`app/pipeline/review.py`. After each chunk job an `advance_chapter` job checks whether the
+chapter's stage is complete and queues the next one:
+
+`translating` → `reviewing` → `qa` → `done`
+
+- **Medical review** (`LLM_REVIEW_MODEL`, default `LLM_MODEL`) sees source, translation and the
+  problems the automatic checks already found, and returns edits only. An edit that would break
+  a number, a symbol or the markup is refused and the earlier text stands. An accepted edit
+  becomes a new version; the earlier one is kept.
+- **Independent QA** (`LLM_QA_MODEL`) reports problems and never changes text. It gets no hints
+  from the earlier stages. Use a model from another vendor: the plan response says
+  `"independent": false` when it is the same model as the reviewer. Without `LLM_QA_MODEL` the
+  stage is skipped and only the automatic checks apply.
+- A chapter with an open critical finding stays in `qa` until a person resolves it.
+
+Set `{"auto_review": false}` or `{"auto_qa": false}` in a project's settings to run a stage by hand.
 
 ## Glossary and translation memory
 
@@ -152,11 +195,17 @@ endpoint, configured with `LLM_*` variables — see `.env.example`).
 - every attempt is written to `llm_calls` with tokens and cost; keys are never stored
 - a model without a configured price is refused, so spend is never untracked
 
+## Console
+
+`/` serves a single static page (`app/web/index.html`, no build step) that drives the API with
+the access token: create a project with a budget, upload a PDF, import a glossary, start a
+chapter's translation, watch progress and cost, download DOCX/PDF. It is phone-sized first.
+
 ## Railway
 
-One service from this repo plus the Postgres plugin. Set `DATABASE_URL=${{Postgres.DATABASE_URL}}`
-and `API_TOKEN`. `railway.toml` runs `alembic upgrade head` before each deploy and uses
-`/health/db` as the health check.
+See [docs/DEPLOY_RAILWAY.md](docs/DEPLOY_RAILWAY.md): one service with a volume at `/data`,
+Postgres, and the variables listed there. With `ENVIRONMENT=production` the app will not start
+without `API_TOKEN`.
 
 ## Migrations
 

@@ -1,10 +1,12 @@
 import secrets
 import threading
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.responses import HTMLResponse
 
-from app.api import documents, glossary, health, projects, translation
+from app.api import documents, export, glossary, health, projects, translation
 from app.config import get_settings
 
 
@@ -20,21 +22,33 @@ def require_token(authorization: str | None = Header(default=None)) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    worker = None
-    if get_settings().embedded_worker:
+    settings = get_settings()
+    if settings.environment == "production" and not settings.api_token:
+        # an open API on the internet could spend the whole model budget
+        raise RuntimeError("API_TOKEN must be set when ENVIRONMENT=production")
+    workers = []
+    if settings.embedded_worker:
         from app.db import get_engine
         from app.worker import Worker, default_handlers
-        worker = Worker(get_engine(), default_handlers())
-        threading.Thread(target=worker.run_forever, name="mts-worker", daemon=True).start()
+        for n in range(max(1, settings.worker_threads)):
+            worker = Worker(get_engine(), default_handlers())
+            threading.Thread(target=worker.run_forever, name=f"mts-worker-{n}", daemon=True).start()
+            workers.append(worker)
     yield
-    if worker is not None:
+    for worker in workers:
         worker.stop()
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Medical Translation Studio", version="0.1.0", lifespan=lifespan)
     app.include_router(health.router)
-    for router in (projects.router, documents.router, glossary.router, translation.router):
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def console() -> str:
+        """The operator console: one static page that talks to /api with the access token."""
+        return (Path(__file__).parent / "web" / "index.html").read_text(encoding="utf-8")
+
+    for router in (projects.router, documents.router, glossary.router, translation.router, export.router):
         app.include_router(router, dependencies=[Depends(require_token)])
     return app
 

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Medical Translation Studio</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --ink:#1f2a44; --muted:#667085; --line:#d9dee7; --bg:#f6f7f9; --card:#fff; --accent:#2f5aa8; --warn:#b54708; --ok:#1a7f4b; --bad:#b42318; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.45 system-ui, "Noto Sans Georgian", sans-serif; color:var(--ink); background:var(--bg); }
+  header { background:var(--ink); color:#fff; padding:14px 16px; font-weight:600; }
+  main { max-width:860px; margin:0 auto; padding:12px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; margin:12px 0; }
+  h2 { font-size:16px; margin:0 0 10px; }
+  h3 { font-size:14px; margin:12px 0 6px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:8px 0 3px; }
+  input, select { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; background:#fff; }
+  button { padding:9px 12px; border:1px solid var(--accent); background:var(--accent); color:#fff; border-radius:8px; font:inherit; cursor:pointer; margin:6px 6px 0 0; }
+  button.ghost { background:#fff; color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; }
+  .row > div { flex:1 1 160px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; background:#eef1f6; margin-right:4px; }
+  .pill.ok { background:#e3f5ea; color:var(--ok); } .pill.warn { background:#fdf0e1; color:var(--warn); } .pill.bad { background:#fde9e7; color:var(--bad); }
+  .chapter { border-top:1px solid var(--line); padding:10px 0; }
+  .chapter:first-child { border-top:0; }
+  #message { position:fixed; left:12px; right:12px; bottom:12px; z-index:2; padding:10px 12px; border-radius:8px; display:none; box-shadow:0 4px 14px rgba(0,0,0,.15); }
+  main { padding-bottom:80px; }
+  #message.error { display:block; background:#fde9e7; color:var(--bad); } #message.info { display:block; background:#e8effb; color:var(--accent); }
+  table { width:100%; border-collapse:collapse; font-size:13px; } td, th { text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>Medical Translation Studio</header>
+<main>
+  <div id="message"></div>
+
+  <section>
+    <h2>წვდომა</h2>
+    <label for="token">წვდომის კოდი (API_TOKEN)</label>
+    <div class="row">
+      <div><input id="token" type="password" autocomplete="off"></div>
+      <button id="saveToken">შესვლა</button>
+    </div>
+    <p class="muted">კოდი ინახება მხოლოდ ამ ბრაუზერში.</p>
+  </section>
+
+  <section id="projects" hidden>
+    <h2>პროექტი</h2>
+    <label for="project">არჩევა</label>
+    <select id="project"></select>
+    <h3>ახალი პროექტი</h3>
+    <div class="row">
+      <div><label for="newName">სახელი</label><input id="newName" placeholder="მაგ. სატესტო თავი"></div>
+      <div><label for="newBudget">ბიუჯეტი, USD</label><input id="newBudget" type="number" min="0" step="1" value="5"></div>
+      <button id="createProject">შექმნა</button>
+    </div>
+  </section>
+
+  <section id="work" hidden>
+    <h2>ხარჯი და სამუშაოები</h2>
+    <div id="cost" class="muted">—</div>
+    <div id="jobs" class="muted"></div>
+    <button id="retry" class="ghost">წარუმატებელი სამუშაოების ხელახლა გაშვება</button>
+
+    <h2 style="margin-top:18px">დოკუმენტები</h2>
+    <div class="row">
+      <div><label for="file">PDF ფაილი</label><input id="file" type="file" accept="application/pdf"></div>
+      <button id="upload">ატვირთვა</button>
+    </div>
+    <div id="documents"></div>
+
+    <h2 style="margin-top:18px">ლექსიკონი</h2>
+    <div class="row">
+      <div><label for="glossary">CSV: ინგლისური ტერმინი, ქართული ტერმინი</label><input id="glossary" type="file" accept=".csv,.tsv,text/csv"></div>
+      <button id="importGlossary" class="ghost">იმპორტი</button>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const STATUS = { uploaded:"ატვირთულია", parsing:"მუშავდება", parsed:"დამუშავებულია", failed:"შეცდომა",
+  pending:"მოლოდინში", translating:"ითარგმნება", reviewing:"რევიზია", qa:"QA / ელოდება გადაწყვეტას", done:"დასრულებულია" };
+let token = "";
+try { token = localStorage.getItem("mts_token") || ""; } catch (e) { token = ""; }
+let timer = null;
+
+function say(text, kind) {
+  const box = $("message");
+  box.textContent = text || "";
+  box.className = text ? (kind || "info") : "";
+}
+
+async function api(path, options) {
+  const opts = Object.assign({ headers: {} }, options || {});
+  opts.headers = Object.assign({ Authorization: "Bearer " + token }, opts.headers);
+  const response = await fetch(path, opts);
+  if (!response.ok) {
+    let detail = response.statusText;
+    try { const body = await response.json(); detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail); } catch (e) { /* not JSON */ }
+    throw new Error(response.status + ": " + detail);
+  }
+  return response;
+}
+const getJson = async (path) => (await api(path)).json();
+const postJson = async (path, body) => (await api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) })).json();
+
+function el(tag, attrs, children) {
+  const node = document.createElement(tag);
+  Object.entries(attrs || {}).forEach(([k, v]) => { if (k === "text") node.textContent = v; else if (k === "onclick") node.onclick = v; else node.setAttribute(k, v); });
+  (children || []).forEach((child) => node.appendChild(child));
+  return node;
+}
+
+async function guarded(button, action) {
+  if (button) button.disabled = true;
+  try { await action(); } catch (error) { say(error.message, "error"); } finally { if (button) button.disabled = false; }
+}
+
+async function loadProjects(selectId) {
+  const projects = await getJson("/api/projects");
+  const select = $("project");
+  select.replaceChildren(...projects.map((p) => el("option", { value: p.id, text: p.name })));
+  if (selectId) select.value = selectId;
+  $("projects").hidden = false;
+  $("work").hidden = projects.length === 0;
+  if (projects.length) await refresh();
+}
+
+async function download(path, fallbackName) {
+  const response = await api(path);
+  const match = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "");
+  const url = URL.createObjectURL(await response.blob());
+  const link = el("a", { href: url, download: match ? match[1] : fallbackName });
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+function pill(text, kind) { return el("span", { class: "pill " + (kind || ""), text }); }
+
+async function chapterRow(chapter) {
+  const info = await getJson("/api/chapters/" + chapter.id + "/segments?limit=1");
+  const counts = info.counts || {};
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const done = total - (counts.pending || 0);
+  const row = el("div", { class: "chapter" });
+  row.appendChild(el("div", { text: chapter.title + "  (გვ. " + chapter.page_start + "–" + chapter.page_end + ")" }));
+  const state = chapter.status === "done" ? "ok" : (chapter.status === "qa" || chapter.status === "failed" ? "warn" : "");
+  const pills = el("div", {}, [pill(STATUS[chapter.status] || chapter.status, state), pill("სეგმენტები: " + done + " / " + total)]);
+  if (counts.flagged) pills.appendChild(pill("მონიშნული: " + counts.flagged, "bad"));
+  row.appendChild(pills);
+  const translate = el("button", { text: "თარგმნა" });
+  translate.onclick = () => guarded(translate, async () => {
+    const plan = await postJson("/api/chapters/" + chapter.id + "/translate");
+    say("რიგში ჩადგა " + plan.chunks + " ნაწილი, " + plan.words + " სიტყვა. სავარაუდო ხარჯი (უხეში): $" + plan.estimated_cost_usd);
+    await refresh();
+  });
+  row.appendChild(translate);
+  [["ქართული DOCX", "docx", "ka"], ["ქართული PDF", "pdf", "ka"], ["ორენოვანი DOCX", "docx", "bilingual"]].forEach(([label, format, mode]) => {
+    const button = el("button", { class: "ghost", text: label });
+    button.onclick = () => guarded(button, () => download("/api/chapters/" + chapter.id + "/export?format=" + format + "&mode=" + mode, "export." + format));
+    row.appendChild(button);
+  });
+  return row;
+}
+
+async function refresh() {
+  const projectId = $("project").value;
+  if (!projectId) return;
+  const [cost, jobs, documents] = await Promise.all([
+    getJson("/api/projects/" + projectId + "/cost"),
+    getJson("/api/projects/" + projectId + "/jobs"),
+    getJson("/api/projects/" + projectId + "/documents"),
+  ]);
+  const budget = cost.budget_usd === null ? "ლიმიტის გარეშე" : "$" + cost.budget_usd.toFixed(2);
+  const stages = Object.entries(cost.stages).map(([name, s]) => name + ": $" + s.cost_usd.toFixed(2) + " (" + s.calls + " გამოძახება)").join(" · ");
+  $("cost").textContent = "დახარჯულია $" + cost.spent_usd.toFixed(2) + " / ბიუჯეტი " + budget + (stages ? " — " + stages : "");
+  $("jobs").textContent = Object.entries(jobs).map(([kind, counts]) => kind + ": " + Object.entries(counts).map(([status, n]) => status + " " + n).join(", ")).join(" · ") || "სამუშაოები არ არის";
+
+  const list = $("documents");
+  const nodes = [];
+  for (const doc of documents) {
+    const detail = await getJson("/api/documents/" + doc.id);
+    const card = el("div", {}, [el("h3", { text: doc.filename })]);
+    const state = doc.status === "parsed" ? "ok" : (doc.status === "failed" ? "bad" : "warn");
+    card.appendChild(el("div", {}, [pill(STATUS[doc.status] || doc.status, state), pill("გვერდები: " + (detail.page_count || "—")), pill("სეგმენტები: " + detail.segments)]));
+    if (detail.last_error) card.appendChild(el("div", { class: "muted", text: "ბოლო შეცდომა: " + detail.last_error }));
+    const warnings = (detail.parse && detail.parse.warnings) || [];
+    warnings.slice(0, 3).forEach((w) => card.appendChild(el("div", { class: "muted", text: "⚠ " + w })));
+    if (warnings.length > 3) card.appendChild(el("div", { class: "muted", text: "… კიდევ " + (warnings.length - 3) + " შენიშვნა" }));
+    for (const chapter of detail.chapters) card.appendChild(await chapterRow(chapter));
+    nodes.push(card);
+  }
+  list.replaceChildren(...nodes);
+}
+
+$("saveToken").onclick = () => guarded($("saveToken"), async () => {
+  token = $("token").value.trim();
+  try { localStorage.setItem("mts_token", token); } catch (e) { /* storage unavailable: keep in memory */ }
+  await loadProjects();
+  say("");
+});
+$("project").onchange = () => guarded(null, refresh);
+$("createProject").onclick = () => guarded($("createProject"), async () => {
+  const name = $("newName").value.trim();
+  if (!name) throw new Error("შეიყვანეთ პროექტის სახელი");
+  const budget = $("newBudget").value === "" ? null : Number($("newBudget").value);
+  const project = await postJson("/api/projects", { name, budget_usd: budget });
+  $("newName").value = "";
+  await loadProjects(project.id);
+});
+$("upload").onclick = () => guarded($("upload"), async () => {
+  const file = $("file").files[0];
+  if (!file) throw new Error("აირჩიეთ PDF ფაილი");
+  const form = new FormData();
+  form.append("file", file);
+  await api("/api/projects/" + $("project").value + "/documents", { method: "POST", body: form });
+  $("file").value = "";
+  say("ფაილი ატვირთულია და მუშავდება.");
+  await refresh();
+});
+$("importGlossary").onclick = () => guarded($("importGlossary"), async () => {
+  const file = $("glossary").files[0];
+  if (!file) throw new Error("აირჩიეთ CSV ფაილი");
+  const form = new FormData();
+  form.append("file", file);
+  const result = await (await api("/api/projects/" + $("project").value + "/glossary/import", { method: "POST", body: form })).json();
+  $("glossary").value = "";
+  say("ლექსიკონი: დაემატა " + result.created + ", განახლდა " + result.updated + ", გამოტოვდა " + result.skipped);
+});
+$("retry").onclick = () => guarded($("retry"), async () => {
+  const result = await postJson("/api/projects/" + $("project").value + "/jobs/retry-failed");
+  say("რიგში დაბრუნდა " + result.requeued + " სამუშაო");
+  await refresh();
+});
+
+$("token").value = token;
+if (token) guarded(null, loadProjects);
+timer = setInterval(() => { if (!$("work").hidden && !document.hidden) refresh().catch(() => {}); }, 8000);
+</script>
+</body>
+</html>
