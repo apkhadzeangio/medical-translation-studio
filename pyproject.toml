@@ -26,6 +26,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["app*"]
 
+[tool.setuptools.package-data]
+app = ["web/*.html"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py312"

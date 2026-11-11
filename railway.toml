@@ -5,6 +5,6 @@ dockerfilePath = "Dockerfile"
 [deploy]
 preDeployCommand = "alembic upgrade head"
 healthcheckPath = "/health/db"
-healthcheckTimeout = 60
+healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5

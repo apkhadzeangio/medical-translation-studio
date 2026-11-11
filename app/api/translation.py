@@ -99,7 +99,8 @@ def chapter_segments(chapter_id: uuid.UUID, limit: int = 200, offset: int = 0, f
         flags.setdefault(flag.segment_id, []).append(
             {"check": flag.check_name, "severity": flag.severity, "message": flag.message})
     counts = dict(session.execute(
-        select(Segment.status, func.count()).where(Segment.chapter_id == chapter_id).group_by(Segment.status)).all())
+        select(Segment.status, func.count()).where(Segment.chapter_id == chapter_id, Segment.translatable)
+        .group_by(Segment.status)).all())
     return {
         "chapter": {"id": str(chapter.id), "title": chapter.title, "status": chapter.status},
         "counts": counts,

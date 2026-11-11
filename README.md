@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-10 — export.** PDF in, translated DOCX/PDF out; the model stages have so far only run against a simulated model.
+Status: **PR-11 — ready to deploy.** Console, pipeline and export work end to end against a stand-in model; a real model has not been called yet.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
@@ -195,11 +195,17 @@ endpoint, configured with `LLM_*` variables — see `.env.example`).
 - every attempt is written to `llm_calls` with tokens and cost; keys are never stored
 - a model without a configured price is refused, so spend is never untracked
 
+## Console
+
+`/` serves a single static page (`app/web/index.html`, no build step) that drives the API with
+the access token: create a project with a budget, upload a PDF, import a glossary, start a
+chapter's translation, watch progress and cost, download DOCX/PDF. It is phone-sized first.
+
 ## Railway
 
-One service from this repo plus the Postgres plugin. Set `DATABASE_URL=${{Postgres.DATABASE_URL}}`
-and `API_TOKEN`. `railway.toml` runs `alembic upgrade head` before each deploy and uses
-`/health/db` as the health check.
+See [docs/DEPLOY_RAILWAY.md](docs/DEPLOY_RAILWAY.md): one service with a volume at `/data`,
+Postgres, and the variables listed there. With `ENVIRONMENT=production` the app will not start
+without `API_TOKEN`.
 
 ## Migrations
 

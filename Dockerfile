@@ -15,7 +15,7 @@ RUN pip install .
 COPY alembic.ini ./
 COPY migrations ./migrations
 
-RUN useradd --create-home --uid 1000 mts
-USER mts
+# Runs as root: a Railway volume is mounted root-owned, and the app must write uploads and
+# extracted figures to it. The container is the isolation boundary.
 
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
