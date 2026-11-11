@@ -33,7 +33,9 @@ def test_checks_catch_what_matters():
     assert checks(src, good) == []
     assert checks(src, good.replace("0.80", "0.8")) == ["numbers"]
     assert checks(src, good.replace("≤", "≥")) == ["symbols"]
-    assert checks(src, good.replace("<sup>3</sup>", "3")) == ["markup"]
+    # a flattened exponent is both lost markup and a different number (10 and 3 became 103)
+    assert checks(src, good.replace("<sup>3</sup>", "3")) == ["markup", "numbers"]
+    assert checks(src, good.replace("<sup>4</sup>", "<sub>4</sub>")) == ["markup"]
     assert checks(src, good.replace("(25%)", "")) == ["numbers", "symbols"]
     assert checks("1,250 units", "1.250 ერთეული") == ["numbers"]
     assert checks("A parser should keep the page image.", "A parser should keep the page image.") == ["untranslated"]
