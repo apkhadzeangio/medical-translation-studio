@@ -1,0 +1,13 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: mts
+      POSTGRES_PASSWORD: mts
+      POSTGRES_DB: mts
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./tools/create_test_db.sql:/docker-entrypoint-initdb.d/create_test_db.sql:ro
+volumes:
+  pgdata:
