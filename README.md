@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-2 — foundation.** API skeleton, database schema, migrations, CI.
+Status: **PR-3 — LLM gateway.** Foundation (API, schema, migrations, CI) plus the provider gateway.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
@@ -41,6 +41,17 @@ The earlier one-file pilot lives in `tools/spike/`.
 | `glossary_terms`, `tm_entries` | terminology and translation memory |
 | `jobs` | Postgres work queue with idempotency keys |
 | `llm_calls` | token and cost ledger per request |
+
+## LLM gateway
+
+`app/llm/gateway.py` is the only code that calls a model provider (any OpenAI-compatible
+endpoint, configured with `LLM_*` variables — see `.env.example`).
+
+- several API keys used round-robin; a rate-limited key rests, a rejected key is dropped
+- retries with backoff on 429 / 5xx / timeouts, honouring `Retry-After`
+- hard stop when the project budget (`projects.budget_usd`) or `LLM_BUDGET_USD` is reached
+- every attempt is written to `llm_calls` with tokens and cost; keys are never stored
+- a model without a configured price is refused, so spend is never untracked
 
 ## Railway
 
