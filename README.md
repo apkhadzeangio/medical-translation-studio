@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-6 — job queue and worker.** Upload a PDF, it is parsed in the background and survives a worker crash.
+Status: **PR-7 — glossary and translation memory.** Upload, background parsing, terminology and TM are in place; the translation stage is next.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
@@ -30,6 +30,12 @@ The earlier one-file pilot lives in `tools/spike/`.
 | POST | `/api/documents/{id}/reparse` | parse again, replacing the previous result |
 | GET | `/api/projects/{id}/jobs` | job counts by kind and status |
 | POST | `/api/projects/{id}/jobs/retry-failed` | requeue failed jobs |
+| GET / POST | `/api/projects/{id}/glossary` | search terms / add or change one |
+| POST | `/api/projects/{id}/glossary/import` | CSV or TSV: English term, Georgian term, optional note |
+| GET | `/api/projects/{id}/glossary/export` | glossary as CSV |
+| DELETE | `/api/glossary/{term_id}` | remove a term |
+| POST | `/api/projects/{id}/tm/import` | CSV or TSV of translated sentence pairs |
+| GET | `/api/projects/{id}/tm` | translation-memory entry counts by origin |
 
 `/api/*` requires `Authorization: Bearer $API_TOKEN` when `API_TOKEN` is set.
 
@@ -46,6 +52,19 @@ The earlier one-file pilot lives in `tools/spike/`.
 | `glossary_terms`, `tm_entries` | terminology and translation memory |
 | `jobs` | Postgres work queue with idempotency keys |
 | `llm_calls` | token and cost ledger per request |
+
+## Glossary and translation memory
+
+`app/terminology.py`:
+
+- **Glossary.** All of a project's terms compile into one pattern: whole words only, the
+  longest term wins (`abdominal aortic aneurysm` over `aneurysm`), plurals match. `find()`
+  gives the terms present in a chunk (these go into the translation prompt); `violations()`
+  lists terms whose Georgian equivalent is missing from a translation, comparing word stems
+  so that case endings do not raise false alarms.
+- **Translation memory.** Exact reuse of an earlier translation of the same source text
+  (whitespace-insensitive, case-sensitive). An entry approved by a person is never overwritten
+  by a machine translation. Fuzzy matching is not implemented.
 
 ## Background jobs
 
