@@ -78,6 +78,7 @@ class Chunk:
     repeated_header_rows: int = 0   # leading rows that only repeat the first fragment's header
     note_of: str | None = None      # table this note belongs to
     label_boxes: list[BBox] = field(default_factory=list)   # where each figure label is printed
+    dropped: bool = False           # the model called it page furniture
     extra: dict = field(default_factory=dict)         # detector-specific details (formula parts, ...)
 
     @property
@@ -97,6 +98,8 @@ class PageInfo:
     tables: int = 0
     figures: int = 0
     chunk_ids: list[str] = field(default_factory=list)
+    read_by_model: bool = False     # the model step decided this page's structure
+    model_notes: list[str] = field(default_factory=list)   # parts of its answer that failed a check
 
 
 @dataclass
@@ -505,13 +508,18 @@ def classify(chunks: list[Chunk], pages: dict[int, PageInfo], body: float) -> No
         c.level = min(styles.index((c.font, round(c.size * 2) / 2)) + 1, 4) if c.type == "heading" else None
 
 
-def link_captions(chunks: list[Chunk], body: float) -> list[Chunk]:
-    """Attach tables/figures to their captions and notes, and keep each group together in the order."""
+def link_captions(chunks: list[Chunk], body: float, *, keep_order: bool = False) -> list[Chunk]:
+    """Attach tables/figures to their captions and notes, and keep each group together in the order.
+
+    With `keep_order` the links are made but nothing moves (the order was decided by the model).
+    """
     captions = [c for c in chunks if c.type == "caption"]
     taken: set[str] = set()
     out = list(chunks)
 
     def move(chunk: Chunk, anchor: Chunk, after: bool) -> None:
+        if keep_order:
+            return
         out.remove(chunk)
         out.insert(out.index(anchor) + (1 if after else 0), chunk)
 
@@ -652,9 +660,12 @@ def review_structure(parsed: ParsedDocument) -> None:
                 parsed.report(c.page, "figure_labels", "warning",
                               f"figure {c.label or ''} carries {len(wordy)} text labels; check how they were grouped"
                               .replace("  ", " "))
-        elif c.type == "equation" and c.detection == "fraction":
+        elif c.type == "equation" and c.detection and c.extra.get("verified"):
+            parsed.report(c.page, "formula_text", "warning",
+                          f"a formula was written out by the model and will be translated; check it: {c.text[:120]}")
+        elif c.type == "equation" and c.detection:
             parsed.report(c.page, "formula_image", "warning",
-                          "a fraction formula is kept as an image of the source and is not translated; "
+                          "a formula is kept as an image of the source and is not translated; "
                           f"check it: {c.text[:120]}")
         elif c.type == "caption" and c.id not in linked:
             kind = "table" if c.text.lower().startswith("table") else "figure"
@@ -714,8 +725,12 @@ def find_chapters(doc: pymupdf.Document, chunks: list[Chunk], page_count: int) -
 # ----------------------------------------------------------------------------- entry point
 
 
-def analyse(doc: pymupdf.Document, reorder=None) -> ParsedDocument:
-    """Parse an open PDF. `reorder(page, info, chunks) -> chunks | None` is the optional model step."""
+def analyse(doc: pymupdf.Document, reorder=None, *, every_page: bool = False) -> ParsedDocument:
+    """Parse an open PDF. `reorder(page, info, chunks) -> chunks | None` is the model step.
+
+    The model is asked about complex pages (figures, tables, captions, formulas, 3+ columns) or,
+    with `every_page`, about every page that has more than one chunk.
+    """
     pages: list[PageInfo] = []
     per_page: list[list[Chunk]] = []
     for number, page in enumerate(doc, start=1):
@@ -744,17 +759,20 @@ def analyse(doc: pymupdf.Document, reorder=None) -> ParsedDocument:
         page_chunks = link_captions(page_chunks, body)
         info.complex = bool(
             info.columns > 2 or info.tables or info.figures
-            or any(c.type in ("caption", "callout") for c in page_chunks)
+            or any(c.type in ("caption", "callout") or c.detection == "fraction" for c in page_chunks)
         )
-        if reorder is not None and info.complex and len(page_chunks) > 1:
+        if reorder is not None and (info.complex or every_page) and len(page_chunks) > 1:
             try:
                 improved = reorder(page, info, page_chunks)
             except Exception as exc:  # noqa: BLE001 - the deterministic order is always a valid fallback
                 improved = None
                 warnings.append(f"page {info.number}: structure model failed ({type(exc).__name__}: {exc})")
             if improved is not None:
-                dropped += len(page_chunks) - len(improved)
-                page_chunks = improved
+                dropped += sum(c.dropped for c in page_chunks)
+                page_chunks = link_captions(improved, body, keep_order=True)   # a re-typed figure finds its caption
+                info.tables = sum(c.type == "table" for c in page_chunks)
+                info.figures = sum(c.type == "figure" for c in page_chunks)
+                warnings += [f"p{info.number}: {note}" for note in info.model_notes]
                 notes.clear()       # the accepted order replaces the uncertain deterministic fallback
         if notes:
             uncertain_order.append(info.number)
@@ -777,12 +795,14 @@ def analyse(doc: pymupdf.Document, reorder=None) -> ParsedDocument:
         parsed.issues.append({"page": number, "code": "scanned", "severity": "warning",
                               "message": "no text layer; the page needs OCR and is not translated"})
     for number in uncertain_order:
+        if by_number[number].read_by_model:
+            continue                                  # the model saw the page and set the order
         parsed.report(number, "reading_order", "error",
                       "text columns could not be separated; the reading order is a guess")
     review_structure(parsed)
     return parsed
 
 
-def analyse_bytes(data: bytes, reorder=None) -> ParsedDocument:
+def analyse_bytes(data: bytes, reorder=None, *, every_page: bool = False) -> ParsedDocument:
     with pymupdf.open(stream=data, filetype="pdf") as doc:
-        return analyse(doc, reorder)
+        return analyse(doc, reorder, every_page=every_page)

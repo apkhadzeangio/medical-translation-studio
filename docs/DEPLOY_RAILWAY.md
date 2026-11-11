@@ -31,6 +31,7 @@ database is at the revision the code needs, which keeps the previous deployment 
 | `LLM_PRICES` | `{"gpt-6-astra": {"input": 10, "cached_input": 1, "output": 50}}` |
 | `LLM_BUDGET_USD` | hard cap across all projects, e.g. `20` |
 | `LLM_MAX_OUTPUT_TOKENS` | optional; cap on one call's output tokens, reasoning included (e.g. `16000`). A cut-off answer fails the job instead of being retried |
+| `PDF_STRUCTURE_MODEL` | `all` (default): the model reads every page image to decide structure, one request per page. `complex`: only pages with figures, tables or formulas. `off`: geometric parser alone |
 | `LLM_QA_MODEL` | optional; leave empty to skip model QA. Prefer another vendor's model, with `LLM_QA_BASE_URL` and `LLM_QA_API_KEYS`, and add its price to `LLM_PRICES` |
 
 With `ENVIRONMENT=production` the app refuses to start without `API_TOKEN`.

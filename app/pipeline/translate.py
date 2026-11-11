@@ -48,9 +48,13 @@ Rules
 - kind "heading": a heading, no final period. kind "table_cell": short, no added words; a cell that
   is only a code, a number or an identifier is returned unchanged. kind "caption": keep the label
   and number ("FIGURE 17.1" → "სურათი 17.1", "TABLE 17.1" → "ცხრილი 17.1").
+  kind "figure_label": a label printed inside a figure; short, no final period, no added words.
+  kind "formula": a formula written on one line. Translate only its words; keep every number,
+  symbol, bracket, slash and the order of its parts exactly.
 """
 
-KIND = {"table": "table_cell", "list": "list_item", "list_item": "list_item"}
+KIND = {"table": "table_cell", "list": "list_item", "list_item": "list_item", "figure": "figure_label",
+        "equation": "formula"}
 
 
 @lru_cache

@@ -155,9 +155,18 @@ While storage is a local directory the worker must see the same disk as the API:
   full-width blocks ordered, headings / captions / footnotes / references / list items
   classified, paragraphs joined across column and page breaks, chapters from the PDF outline
   or `CHAPTER n` headings.
-- Optional model pass on complex pages only (images, captions, 3+ columns): the model gets the
-  page image and chunk ids and returns order, types and page furniture. The answer is used only
-  if every id appears exactly once; otherwise the deterministic result stands.
+- **The model decides structure** (`PDF_STRUCTURE_MODEL=all`, the default when a key is set):
+  for every page the model gets the page image and the parser's chunks (ids, text, boxes,
+  guessed types) and answers with ids: reading order, page furniture, corrected types, which
+  loose texts are labels of which figure, which "table" is really a drawing, which pieces are
+  one paragraph, how a table's cells belong in rows, and which pieces form a formula.
+  `complex` asks only about pages with figures, tables, captions or formulas; `off` never asks.
+  What the model may not do is write source text. An answer is used only if every id appears
+  exactly once; re-arranged table rows only if they hold exactly the same words and numbers;
+  a formula's one-line transcription only if it holds exactly the words and numbers printed.
+  A transcription that passes becomes a translatable segment (kind `formula`); one that fails
+  leaves the formula as an image. Anything refused is listed in the warnings and the
+  geometric result stands. Each request is in `llm_calls` under stage `pdf_structure`.
 - Superscripts are kept as `<sup>12</sup>` so citation markers do not fuse with words.
 
 - **Tables**: rows from horizontal rules and shaded row bands, columns from text alignment, cell
@@ -190,7 +199,7 @@ lists them on the document card.
 | severity | codes | effect |
 |---|---|---|
 | `error` | `reading_order`, `table_structure`, `table_not_found`, `stray_symbols` | the structure is known to be damaged: `POST …/translate` answers 409 with the issues; `?force=true` overrides, and the console asks before it does |
-| `warning` | `formula_image`, `figure_labels`, `figure_without_caption`, `figure_not_found`, `table_without_caption`, `scanned` | translation is allowed; a person should look at the page |
+| `warning` | `formula_text`, `formula_image`, `figure_labels`, `figure_without_caption`, `figure_not_found`, `table_without_caption`, `scanned` | translation is allowed; a person should look at the page |
 
 Inspect a parse, or score it against a ground-truth file:
 

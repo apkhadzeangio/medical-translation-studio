@@ -249,8 +249,12 @@ def write_book(session: Session, items: list[Item], storage: Storage | None, fon
         elif kind in ("footnote", "reference"):
             for cell in cells:
                 add_text(doc.add_paragraph(), cell.text, font, size=8.5, highlight=not cell.translated)
-        elif kind == "equation" and block.asset_id:      # a fraction formula: the source image, as printed
+        elif kind == "equation" and block.asset_id:      # a displayed formula: the source image, as printed
             _write_figure(doc, session, Item(block, {}), storage, font)
+            if block.data.get("translated") and cells:   # ...and its wording in Georgian, on one line
+                paragraph = doc.add_paragraph()
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                add_text(paragraph, cells[0].text, font, italic=True, highlight=not cells[0].translated)
         elif kind == "equation":
             paragraph = doc.add_paragraph()
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER

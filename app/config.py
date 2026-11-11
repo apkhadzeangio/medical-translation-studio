@@ -33,10 +33,14 @@ class Settings(BaseSettings):
     llm_concurrency_per_key: int = 4
     llm_timeout_seconds: float = 600
     translate_chunk_words: int = 1200   # source words per model call
-    # Ask the model to double-check the layout of complex pages while parsing. Off by default:
-    # it costs one image request per page with a figure or table, and the rule-based parser
-    # alone already scores 100% on the reference chapter.
-    pdf_structure_model: bool = False
+    # Let the model read each page image and decide its structure (order, types, figure labels,
+    # table or drawing, formulas). The text itself always comes from the PDF.
+    #   all      every page, one image request per page (the default: layouts differ per book)
+    #   complex  only pages with figures, tables, captions, formulas or 3+ columns
+    #   off      geometric parser alone
+    # Needs LLM_API_KEYS; without a key the geometric parser runs alone.
+    pdf_structure_model: str = "all"
+    pdf_structure_model_name: str | None = None      # model for this step; empty = llm_model
     llm_review_model: str | None = None   # medical review; defaults to llm_model
     # Independent QA. Use a model from a different vendor where possible; a model checking
     # its own work misses its own mistakes. Leave llm_qa_model empty to skip the model QA stage.
@@ -47,6 +51,18 @@ class Settings(BaseSettings):
     @property
     def llm_key_list(self) -> list[str]:
         return [k.strip() for k in self.llm_api_keys.split(",") if k.strip()]
+
+    @field_validator("pdf_structure_model", mode="before")
+    @classmethod
+    def _structure_mode(cls, v: object) -> str:
+        text = str(v).strip().lower()
+        if text in ("true", "1", "yes", "on"):         # the setting used to be a switch
+            return "all"
+        if text in ("false", "0", "no", "", "none"):
+            return "off"
+        if text not in ("all", "complex", "off"):
+            raise ValueError("PDF_STRUCTURE_MODEL must be all, complex or off")
+        return text
 
     @field_validator("database_url")
     @classmethod

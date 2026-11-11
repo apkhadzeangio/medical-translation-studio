@@ -78,11 +78,12 @@ def store_parsed(
         data: dict = {"parts": [{"page": p, "bbox": _bbox(b)} for p, b in chunk.parts]}
         asset_id = None
 
-        formula = chunk.type == "equation" and chunk.detection == "fraction"
+        formula = chunk.type == "equation" and bool(chunk.detection)
+        verified = formula and bool(chunk.extra.get("verified"))    # its one-line text passed the word check
         if chunk.type in ("table", "figure") or formula:
             data = {"detection": chunk.detection, "caption_block_idx": block_idx.get(chunk.caption_id)}
             if formula:                      # kept as an image; the parts are stored for whoever checks it
-                data |= {"formula": chunk.extra, "needs_review": True}
+                data |= {"formula": chunk.extra, "needs_review": True, "translated": verified}
             elif chunk.type == "table":
                 data |= {"rows": chunk.rows, "cols": max(len(r) for r in chunk.rows), "spans": chunk.spans,
                          "header_rows": chunk.header_rows, "label": chunk.label,
@@ -138,7 +139,7 @@ def store_parsed(
             for i, text in enumerate(texts):
                 session.add(Segment(
                     block_id=block.id, chapter_id=chapter_id, idx=i, source_text=text,
-                    source_hash=source_hash(text), translatable=chunk.type not in UNTRANSLATED,
+                    source_hash=source_hash(text), translatable=chunk.type not in UNTRANSLATED or verified,
                 ))
             stats["segments"] += len(texts)
 
@@ -152,6 +153,7 @@ def store_parsed(
             "complex_pages": [p.number for p in parsed.pages if p.complex],
             "scanned_pages": [p.number for p in parsed.pages if p.scanned],
             "columns": {str(p.number): p.columns for p in parsed.pages if p.columns != 1},
+            "pages_read_by_model": [p.number for p in parsed.pages if p.read_by_model],
             "warnings": parsed.warnings,
             "issues": parsed.issues,
             "blocking": sum(issue["severity"] == "error" for issue in parsed.issues),

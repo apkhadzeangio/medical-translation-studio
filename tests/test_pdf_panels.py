@@ -233,3 +233,127 @@ def test_translation_is_held_back_while_the_structure_is_damaged(client, migrate
     assert client.post(f"/api/chapters/{sound_id}/translate").status_code == 200       # a warning does not block
     assert client.post(f"/api/chapters/{damaged_id}/translate?force=true").status_code == 200
     assert client.post(f"/api/documents/{doc_id}/translate?force=true").status_code == 200
+
+
+# ----------------------------------------------------------------------------- the model decides structure
+
+
+def _model(engine, answer):
+    """A gateway whose provider answers with `answer(request)`; returns it and the requests seen."""
+    import json
+
+    import httpx
+
+    from app.config import Settings
+    from app.llm.gateway import LLMGateway
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(answer(seen[-1]))}}],
+                                         "usage": {"prompt_tokens": 900, "completion_tokens": 60}})
+
+    settings = Settings(llm_api_keys="sk-test", llm_base_url="https://llm.test/v1", llm_max_attempts=1)
+    return LLMGateway(engine, settings, transport=httpx.MockTransport(handler), sleep=lambda s: None), seen
+
+
+def test_model_makes_a_formula_translatable_only_if_its_words_match(migrated_db):
+    from app.ingest.pdf_structure import make_reorder
+    baseline = analyse_bytes(f.build_fraction())
+    ids = [c.id for c in baseline.chunks]
+    formula = baseline.chunks[1].id
+    good = "ABPI = (Systolic pedal (DP) pressure) / (Systolic brachial pressure)"
+
+    gw, seen = _model(migrated_db, lambda _: {"order": ids, "formulas": [{"ids": [formula], "text": good}]})
+    parsed = analyse_bytes(f.build_fraction(), make_reorder(gw))
+    assert len(seen) == 1                                           # a page with a formula goes to the model
+    assert parsed.chunks[1].text == good and parsed.chunks[1].extra["verified"]
+    assert codes(parsed) == ["formula_text"] and parsed.pages[0].read_by_model
+
+    wrong = good.replace("brachial", "radial")                       # a word that is not on the page
+    gw, _ = _model(migrated_db, lambda _: {"order": ids, "formulas": [{"ids": [formula], "text": wrong}]})
+    parsed = analyse_bytes(f.build_fraction(), make_reorder(gw))
+    assert parsed.chunks[1].text == baseline.chunks[1].text and "verified" not in parsed.chunks[1].extra
+    assert codes(parsed) == ["formula_image"]
+    assert any("does not match its printed words" in w for w in parsed.warnings)
+
+
+def test_model_turns_a_false_table_into_a_figure_and_collects_labels(migrated_db):
+    from app.ingest.pdf_structure import make_reorder
+    baseline = analyse_bytes(f.build_table())
+    table = next(c for c in baseline.chunks if c.type == "table")
+    para = baseline.chunks[-1]
+    order = [c.id for c in baseline.chunks if c is not para]
+    gw, _ = _model(migrated_db, lambda _: {"order": order, "not_tables": [table.id],
+                                           "figure_labels": {table.id: [para.id]}})
+    parsed = analyse_bytes(f.build_table(), make_reorder(gw))
+    figure = next(c for c in parsed.chunks if c.id == table.id)
+    assert figure.type == "figure" and figure.rows is None and figure.detection == "model"
+    assert figure.labels[:3] == ["Diameter", "Interval", "Note"] and figure.labels[-1] == para.text
+    assert len(figure.label_boxes) == len(figure.labels)
+    assert para.id not in [c.id for c in parsed.chunks] and parsed.pages[0].tables == 0
+    assert {c.text for c in baseline.chunks if c.text} >= {c.text for c in parsed.chunks if c.text}   # no new text
+
+
+def test_model_may_rearrange_table_cells_but_not_change_them(migrated_db):
+    from app.ingest.pdf_structure import make_reorder
+    baseline = analyse_bytes(f.build_table())
+    ids = [c.id for c in baseline.chunks]
+    table = next(c for c in baseline.chunks if c.type == "table")
+    swapped = [f.TABLE[0], f.TABLE[2], f.TABLE[1], f.TABLE[3]]
+    gw, _ = _model(migrated_db, lambda _: {"order": ids, "table_rows": {table.id: swapped}})
+    assert next(c for c in analyse_bytes(f.build_table(), make_reorder(gw)).chunks if c.type == "table").rows == swapped
+
+    edited = [row[:] for row in f.TABLE]
+    edited[1][1] = "63 months"                                       # a number the page does not have
+    gw, _ = _model(migrated_db, lambda _: {"order": ids, "table_rows": {table.id: edited}})
+    parsed = analyse_bytes(f.build_table(), make_reorder(gw))
+    assert next(c for c in parsed.chunks if c.type == "table").rows == f.TABLE
+    assert any("do not hold the same text" in w for w in parsed.warnings)
+
+
+def test_model_merges_split_pieces_and_every_page_mode_asks_about_plain_pages(migrated_db):
+    import re
+
+    from app.ingest.pdf_structure import make_reorder
+
+    def answer(request):                     # merge the first two chunks the model was shown
+        ids = re.findall(r"'id': '(\w+)'", request["messages"][1]["content"][0]["text"])
+        return {"order": [ids[0]] + ids[2:], "merge": [ids[:2]]}
+
+    plain = f.build_book()                   # text pages only: nothing the geometry calls complex
+    baseline = analyse_bytes(plain)
+    gw, seen = _model(migrated_db, answer)
+    assert len(analyse_bytes(plain, make_reorder(gw)).chunks) == len(baseline.chunks) and seen == []
+
+    parsed = analyse_bytes(plain, make_reorder(gw), every_page=True)
+    assert len(seen) == 4 and all(p.read_by_model for p in parsed.pages)
+    first, second = baseline.chunks[0], baseline.chunks[1]
+    assert parsed.chunks[0].text == f"{first.text} {second.text}"                  # joined, not rewritten
+    assert " ".join(c.text for c in parsed.chunks) == " ".join(c.text for c in baseline.chunks)
+
+
+def test_an_answer_that_loses_or_misuses_an_id_is_refused():
+    import pytest
+
+    from app.ingest.pdf_structure import StructureError, validate
+    kinds = {"a": "paragraph", "b": "paragraph", "t": "table", "g": "figure"}
+    ids = list(kinds)
+    plan = validate({"order": ["a", "t", "g"], "figure_labels": {"g": ["b"]}}, ids, kinds)
+    assert plan.figure_labels == {"g": ["b"]}
+    for bad in ({"order": ["a", "t", "g"]},                                             # b is lost
+                {"order": ["a", "b", "t", "g"], "figure_labels": {"g": ["b"]}},        # b twice
+                {"order": ["a", "b", "g"], "figure_labels": {"g": ["t"]}},             # a table as a label
+                {"order": ["a", "b", "t", "g"], "not_tables": ["g"]},                  # not a table
+                {"order": ["a", "t", "g"], "merge": [["b", "a"]]},                     # head not in the order
+                {"order": ["a", "b", "t", "g"], "table_rows": {"g": [["x"]]}}):
+        with pytest.raises(StructureError):
+            validate(bad, ids, kinds)
+
+
+def test_structure_mode_setting_accepts_the_old_switch():
+    from app.config import Settings
+    assert Settings().pdf_structure_model == "all"
+    assert Settings(pdf_structure_model="true").pdf_structure_model == "all"
+    assert Settings(pdf_structure_model="false").pdf_structure_model == "off"
+    assert Settings(pdf_structure_model="complex").pdf_structure_model == "complex"
