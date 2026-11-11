@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-3 — LLM gateway.** Foundation (API, schema, migrations, CI) plus the provider gateway.
+Status: **PR-4c — parser tuned on a ground-truth chapter.** Foundation, LLM gateway, and a universal PDF parser.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
@@ -41,6 +41,45 @@ The earlier one-file pilot lives in `tools/spike/`.
 | `glossary_terms`, `tm_entries` | terminology and translation memory |
 | `jobs` | Postgres work queue with idempotency keys |
 | `llm_calls` | token and cost ledger per request |
+
+## PDF ingestion
+
+`app/ingest/` turns a text PDF into typed blocks in reading order.
+
+- **Text is never rewritten.** Characters come from the PDF text layer; the model only decides structure.
+- Deterministic pass: running headers/footers and page numbers removed, 1..n columns and
+  full-width blocks ordered, headings / captions / footnotes / references / list items
+  classified, paragraphs joined across column and page breaks, chapters from the PDF outline
+  or `CHAPTER n` headings.
+- Optional model pass on complex pages only (images, captions, 3+ columns): the model gets the
+  page image and chunk ids and returns order, types and page furniture. The answer is used only
+  if every id appears exactly once; otherwise the deterministic result stands.
+- Superscripts are kept as `<sup>12</sup>` so citation markers do not fuse with words.
+
+- **Tables**: rows from horizontal rules and shaded row bands, columns from text alignment, cell
+  text read from the text layer unchanged (one segment per cell). Merged header groups and
+  group labels are recorded as spans; a table continued on the next page is linked to its
+  first fragment and its repeated header rows are marked.
+- **Figures** (raster images and vector drawings) become one block; text inside the figure is
+  kept as `labels`, out of the main flow. Tables and figures are linked to their captions and
+  notes and rendered to PNG assets (`STORAGE_DIR`) for the editor and for export.
+- **Callouts** (shaded or framed boxes), **lists**, **equations** and the chapter numeral are
+  separate block kinds. Sub- and superscripts are kept as `<sub>` / `<sup>`.
+
+Inspect a parse, or score it against a ground-truth file:
+
+    python -m app.ingest.cli book.pdf --pages 40-45 --text
+    python -m app.ingest.evaluate book.pdf truth.json --verbose
+
+`tests/fixtures/synthetic_vascular_chapter.pdf` with its ground truth is the regression
+fixture: the parser must keep scoring 100% on its six text pages.
+
+Known limits: scanned pages are detected and reported but not OCR'd (out of scope); tables
+with neither rules nor shading stay as paragraphs; figure labels are not translated (the
+image is reused as is); a line-break hyphen is removed when the next line starts lowercase,
+which would also join a true compound broken exactly at its hyphen (`follow-` / `up`).
+PyMuPDF is AGPL-licensed: fine for internal use, needs a commercial licence if this is ever
+distributed as closed-source software.
 
 ## LLM gateway
 

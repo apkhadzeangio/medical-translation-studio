@@ -1,0 +1,2790 @@
+{
+  "schema_version": "1.0",
+  "title": "Infrainguinal Reconstruction: Synthetic Assessment and Reporting",
+  "purpose": "Original synthetic textbook fixture for PDF ingestion and translation parser evaluation. Not clinical guidance and not an excerpt from Rutherford.",
+  "page_size_points": [
+    612,
+    792
+  ],
+  "coordinate_system": "bbox = [x0,y0,x1,y1] in PDF points; origin at top-left; y increases downward",
+  "normalization_policy": {
+    "ligatures": "U+FB01 and U+FB02 may normalize to fi and fl",
+    "line_end_hyphenation": "Join only explicitly recorded discretionary line-end hyphenation",
+    "furniture": "Keep in separate furniture metadata; exclude from chapter body",
+    "table_headers": "Repeated printed headers belong to fragments, not additional logical data rows",
+    "scanned_page": "Page 7 has no searchable text layer; all semantic content requires OCR",
+    "raster_labels": "Figure 17.1 labels are pixels, not native PDF text",
+    "vector_figure": "Figure 17.2 is vector artwork and has no standalone raster image object"
+  },
+  "pages": [
+    {
+      "page": 1,
+      "printed_page": 401,
+      "text_origin": "native_pdf",
+      "reading_order": [
+        "p01-b004",
+        "p01-b005",
+        "p01-b006",
+        "p01-b007",
+        "p01-b008",
+        "p01-b009",
+        "p01-b010",
+        "p01-b011",
+        "p01-b012",
+        "p01-b013",
+        "p01-b014",
+        "p01-b015",
+        "p01-b016",
+        "p01-b017",
+        "p01-b018",
+        "p01-b019"
+      ],
+      "furniture_ids": [
+        "p01-b001",
+        "p01-b002",
+        "p01-b003"
+      ]
+    },
+    {
+      "page": 2,
+      "printed_page": 402,
+      "text_origin": "native_pdf",
+      "reading_order": [
+        "p02-b004",
+        "p02-b005",
+        "p02-b006",
+        "p02-b007",
+        "p02-b008",
+        "p02-b009",
+        "p02-b010",
+        "p02-b011",
+        "p02-b012",
+        "p02-b013",
+        "p02-b014"
+      ],
+      "furniture_ids": [
+        "p02-b001",
+        "p02-b002",
+        "p02-b003"
+      ]
+    },
+    {
+      "page": 3,
+      "printed_page": 403,
+      "text_origin": "native_pdf",
+      "reading_order": [
+        "p03-b004",
+        "p03-b005",
+        "p03-b006",
+        "p03-b007",
+        "p03-b008",
+        "p03-b009",
+        "p03-b010",
+        "p03-b011",
+        "p03-b012",
+        "p03-b013",
+        "p03-b014"
+      ],
+      "furniture_ids": [
+        "p03-b001",
+        "p03-b002",
+        "p03-b003"
+      ]
+    },
+    {
+      "page": 4,
+      "printed_page": 404,
+      "text_origin": "native_pdf",
+      "reading_order": [
+        "p04-b004",
+        "p04-b005",
+        "p04-b006",
+        "p04-b007",
+        "p04-b008",
+        "p04-b009",
+        "p04-b010",
+        "p04-b011",
+        "p04-b012",
+        "p04-b013",
+        "p04-b014",
+        "p04-b015",
+        "p04-b016"
+      ],
+      "furniture_ids": [
+        "p04-b001",
+        "p04-b002",
+        "p04-b003"
+      ]
+    },
+    {
+      "page": 5,
+      "printed_page": 405,
+      "text_origin": "native_pdf",
+      "reading_order": [
+        "p05-b004",
+        "p05-b005",
+        "p05-b006",
+        "p05-b007",
+        "p05-b008",
+        "p05-b009",
+        "p05-b010",
+        "p05-b011",
+        "p05-b012",
+        "p05-b013"
+      ],
+      "furniture_ids": [
+        "p05-b001",
+        "p05-b002",
+        "p05-b003"
+      ]
+    },
+    {
+      "page": 6,
+      "printed_page": 406,
+      "text_origin": "native_pdf",
+      "reading_order": [
+        "p06-b004",
+        "p06-b005",
+        "p06-b006",
+        "p06-b007",
+        "p06-b008",
+        "p06-b009",
+        "p06-b010",
+        "p06-b011",
+        "p06-b012",
+        "p06-b013",
+        "p06-b014",
+        "p06-b015",
+        "p06-b016",
+        "p06-b017",
+        "p06-b018",
+        "p06-b019",
+        "p06-b020"
+      ],
+      "furniture_ids": [
+        "p06-b001",
+        "p06-b002",
+        "p06-b003"
+      ]
+    },
+    {
+      "page": 7,
+      "printed_page": 407,
+      "text_origin": "page_image_ocr",
+      "reading_order": [
+        "p07-b004",
+        "p07-b005",
+        "p07-b006",
+        "p07-b007",
+        "p07-b008",
+        "p07-b009",
+        "p07-b010",
+        "p07-b011",
+        "p07-b012",
+        "p07-b013",
+        "p07-b014"
+      ],
+      "furniture_ids": [
+        "p07-b001",
+        "p07-b002",
+        "p07-b003"
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "id": "p01-b001",
+      "page": 1,
+      "type": "running_header",
+      "bbox": [
+        42,
+        19,
+        570,
+        31
+      ],
+      "text": "SECTION V  |  LOWER LIMB ARTERIAL RECONSTRUCTION  |  CHAPTER 17",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p01-b002",
+      "page": 1,
+      "type": "fixture_notice",
+      "bbox": [
+        42,
+        757,
+        535,
+        767
+      ],
+      "text": "SYNTHETIC PARSER FIXTURE - NOT CLINICAL GUIDANCE",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p01-b003",
+      "page": 1,
+      "type": "page_number",
+      "bbox": [
+        544,
+        755,
+        570,
+        768
+      ],
+      "text": "401",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p01-b004",
+      "page": 1,
+      "type": "chapter_number",
+      "bbox": [
+        42,
+        59,
+        91,
+        108
+      ],
+      "text": "17",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p01-b005",
+      "page": 1,
+      "type": "heading",
+      "bbox": [
+        106,
+        55,
+        570,
+        111
+      ],
+      "text": "Infrainguinal Reconstruction:\nAssessment and Reporting",
+      "text_origin": "native_pdf",
+      "heading_level": 1
+    },
+    {
+      "id": "p01-b006",
+      "page": 1,
+      "type": "byline",
+      "bbox": [
+        106,
+        121,
+        570,
+        131.8
+      ],
+      "text": "Medical Translation Studio Test Group",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p01-b007",
+      "page": 1,
+      "type": "abstract",
+      "bbox": [
+        42,
+        153,
+        570,
+        176.0
+      ],
+      "text": "CHAPTER SCOPE. This original test chapter imitates the structure of a surgical textbook. It contains invented records, measurements and references to challenge document extraction. It is not a clinical reference and contains no treatment recommendations.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p01-b008",
+      "page": 1,
+      "type": "callout",
+      "bbox": [
+        42,
+        221,
+        570,
+        290
+      ],
+      "text": "KEY CONCEPTS\n1. Preserve chapter hierarchy, table relationships and figure-caption links.\n2. Distinguish a measured zero from missing, not assessed and absent.\n3. Keep the source record intact when translating or editing its interpretation.",
+      "text_origin": "native_pdf",
+      "title": "KEY CONCEPTS"
+    },
+    {
+      "id": "p01-b009",
+      "page": 1,
+      "type": "heading",
+      "bbox": [
+        42,
+        326,
+        295.0,
+        354.2
+      ],
+      "text": "17.1  PRINCIPLES OF A STRUCTURED RECORD",
+      "text_origin": "native_pdf",
+      "heading_level": 2
+    },
+    {
+      "id": "p01-b010",
+      "page": 1,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        361.2,
+        295.0,
+        439.8
+      ],
+      "text": "A reconstruction record combines narrative description, a diagram, numerical observations and an account of how those observations were obtained. These components occupy different regions of a printed page, but they describe one logical episode. An extraction system should preserve both the text and the relationship between the parts.1,2",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p01-b011",
+      "page": 1,
+      "type": "heading",
+      "bbox": [
+        42,
+        446.8,
+        295.0,
+        459.8
+      ],
+      "text": "Anatomic description",
+      "text_origin": "native_pdf",
+      "heading_level": 3
+    },
+    {
+      "id": "p01-b012",
+      "page": 1,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        466.8,
+        295.0,
+        532.3
+      ],
+      "text": "The synthetic model names an inflow segment, a conduit and two outflow branches. The labels are identifiers for this fixture, not a statement about the suitability of any clinical reconstruction. Figure 17.1 shows the identifiers in a raster illustration; the caption remains ordinary searchable text.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p01-b013",
+      "page": 1,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        539.3,
+        295.0,
+        604.8
+      ],
+      "text": "A side designation must remain attached to its record. In Table 17.1, R and L are deliberate test values. Neither abbreviation may be inferred from a neighboring row. A blank field is also meaningful and must not be silently replaced with the previous nonblank value.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p01-b014",
+      "page": 1,
+      "type": "heading",
+      "bbox": [
+        317.0,
+        326,
+        570.0,
+        340.1
+      ],
+      "text": "17.2  SOURCE AND OBSERVATION",
+      "text_origin": "native_pdf",
+      "heading_level": 2
+    },
+    {
+      "id": "p01-b015",
+      "page": 1,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        347.1,
+        570.0,
+        425.7
+      ],
+      "text": "The source is divided into three layers: what was observed, how it was labeled, and what was subsequently discussed. The layers may be adjacent in prose, yet they should remain distinguishable in a structured representation. A translation should retain the author's stated uncertainty instead of converting it into a positive finding.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p01-b016",
+      "page": 1,
+      "type": "heading",
+      "bbox": [
+        317.0,
+        432.7,
+        570.0,
+        445.7
+      ],
+      "text": "Measurement vocabulary",
+      "text_origin": "native_pdf",
+      "heading_level": 3
+    },
+    {
+      "id": "p01-b017",
+      "page": 1,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        452.7,
+        570.0,
+        518.2
+      ],
+      "text": "For this chapter, a value is an invented scalar attached to a unit. A threshold symbol belongs to the value. Thus, ≤ 0.80 is not interchangeable with ≥ 0.80, and 0.05 is not interchangeable with 0.5. Numeric examples are presented solely to test extraction fidelity.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p01-b018",
+      "page": 1,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        525.2,
+        570.0,
+        590.7
+      ],
+      "text": "The terms absent, not assessed and not visible describe different states in the fixture. They must not collapse into a generic missing-value label. See the reporting examples on printed page 405 and the synthetic references on printed page 406.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p01-b019",
+      "page": 1,
+      "type": "footnote",
+      "bbox": [
+        42,
+        717,
+        570,
+        738.6
+      ],
+      "text": "1 All case identifiers, numerical observations and bibliography entries in this chapter are fictional. No patient data or published textbook passage is reproduced.",
+      "text_origin": "native_pdf",
+      "marker": "1"
+    },
+    {
+      "id": "p02-b001",
+      "page": 2,
+      "type": "running_header",
+      "bbox": [
+        42,
+        19,
+        570,
+        31
+      ],
+      "text": "SECTION V  |  LOWER LIMB ARTERIAL RECONSTRUCTION  |  CHAPTER 17",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p02-b002",
+      "page": 2,
+      "type": "fixture_notice",
+      "bbox": [
+        42,
+        757,
+        535,
+        767
+      ],
+      "text": "SYNTHETIC PARSER FIXTURE - NOT CLINICAL GUIDANCE",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p02-b003",
+      "page": 2,
+      "type": "page_number",
+      "bbox": [
+        544,
+        755,
+        570,
+        768
+      ],
+      "text": "402",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p02-b004",
+      "page": 2,
+      "type": "heading",
+      "bbox": [
+        42,
+        55,
+        295.0,
+        69.1
+      ],
+      "text": "17.2.1  Orientation and sequence",
+      "text_origin": "native_pdf",
+      "heading_level": 2
+    },
+    {
+      "id": "p02-b005",
+      "page": 2,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        76.1,
+        295.0,
+        141.6
+      ],
+      "text": "Reading order is a property of the chapter rather than the order of graphic objects in the PDF stream. Read the left column to its end, then the right column. The illustration below spans both columns and follows their shared discussion. Repeated running headers do not belong inside either paragraph.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p02-b006",
+      "page": 2,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        148.6,
+        295.0,
+        227.2
+      ],
+      "text": "A reconstruction record is deliberately printed with one reconstruc-\ntion break in this paragraph. A semantic text output may join that line-end break, but an archival extraction should retain enough source information to explain the repair. A lexical hyphen in a term such as follow-up is different.",
+      "text_origin": "native_pdf",
+      "normalization_hint": {
+        "display": "reconstruc-\ntion",
+        "semantic": "reconstruction"
+      }
+    },
+    {
+      "id": "p02-b007",
+      "page": 2,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        234.2,
+        295.0,
+        273.5
+      ],
+      "text": "The tokens ﬁnding and ﬂow use typographic ligatures. A normalized output may return finding and flow, provided it neither loses letters nor introduces spaces within the words.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p02-b008",
+      "page": 2,
+      "type": "heading",
+      "bbox": [
+        317.0,
+        55,
+        570.0,
+        69.1
+      ],
+      "text": "17.2.2  Figure relationships",
+      "text_origin": "native_pdf",
+      "heading_level": 2
+    },
+    {
+      "id": "p02-b009",
+      "page": 2,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        76.1,
+        570.0,
+        141.6
+      ],
+      "text": "Panel A is an original diagram with five labels embedded as pixels. Panel B is a generated signal with arbitrary axes. Neither panel contains a diagnostic cutoff. The two panels together form one logical figure, and the caption applies to the composite rather than to two independent figures.3",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p02-b010",
+      "page": 2,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        148.6,
+        570.0,
+        214.1
+      ],
+      "text": "Text inside an illustration may need a separate OCR step even when the surrounding page contains searchable text. A parser should not conclude that every word on a native PDF page is available through its text objects. Preserve the image before attempting any label extraction.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p02-b011",
+      "page": 2,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        221.1,
+        570.0,
+        286.6
+      ],
+      "text": "The figure number may be cited as Fig. 17.1 or Figure 17.1 in the body. Both references should resolve to the same figure entity. The labels Inflow and Conduit should not be inserted into the middle of a paragraph simply because their coordinates align with its lines.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p02-b012",
+      "page": 2,
+      "type": "figure",
+      "bbox": [
+        42,
+        358,
+        570,
+        572.5
+      ],
+      "text": "",
+      "text_origin": "native_pdf",
+      "figure_id": "fig-17-1",
+      "representation": "embedded_raster"
+    },
+    {
+      "id": "p02-b013",
+      "page": 2,
+      "type": "figure_caption",
+      "bbox": [
+        42,
+        584,
+        570,
+        606.2
+      ],
+      "text": "FIGURE 17.1 Original synthetic vessel map and signal trace. A, Inflow, conduit and outflow labels are embedded in the image. B, The waveform uses arbitrary units and carries no diagnostic threshold. Both panels belong to one figure.",
+      "text_origin": "native_pdf",
+      "figure_id": "fig-17-1"
+    },
+    {
+      "id": "p02-b014",
+      "page": 2,
+      "type": "callout",
+      "bbox": [
+        42,
+        647,
+        570,
+        704
+      ],
+      "text": "INTERPRETATION NOTE\nImage preservation and label recognition are separate tasks. An unsuccessful OCR result must not cause the underlying illustration to disappear.",
+      "text_origin": "native_pdf",
+      "title": "INTERPRETATION NOTE"
+    },
+    {
+      "id": "p03-b001",
+      "page": 3,
+      "type": "running_header",
+      "bbox": [
+        42,
+        19,
+        570,
+        31
+      ],
+      "text": "SECTION V  |  LOWER LIMB ARTERIAL RECONSTRUCTION  |  CHAPTER 17",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p03-b002",
+      "page": 3,
+      "type": "fixture_notice",
+      "bbox": [
+        42,
+        757,
+        535,
+        767
+      ],
+      "text": "SYNTHETIC PARSER FIXTURE - NOT CLINICAL GUIDANCE",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p03-b003",
+      "page": 3,
+      "type": "page_number",
+      "bbox": [
+        544,
+        755,
+        570,
+        768
+      ],
+      "text": "403",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p03-b004",
+      "page": 3,
+      "type": "heading",
+      "bbox": [
+        42,
+        55,
+        570,
+        69.1
+      ],
+      "text": "17.3  SYNTHETIC OBSERVATIONS",
+      "text_origin": "native_pdf",
+      "heading_level": 2
+    },
+    {
+      "id": "p03-b005",
+      "page": 3,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        76.1,
+        570,
+        102.3
+      ],
+      "text": "Table 17.1 is intentionally continued across two physical pages. Its top header has merged column groups, and its first column contains vertical group labels. Repeated headers on the continuation page are furniture of the table, not new observations.4",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p03-b006",
+      "page": 3,
+      "type": "table_caption",
+      "bbox": [
+        42,
+        166,
+        570,
+        177.1
+      ],
+      "text": "TABLE 17.1  Invented reconstruction records (part 1 of 2)",
+      "text_origin": "native_pdf",
+      "logical_table_id": "table-17-1",
+      "continued": false
+    },
+    {
+      "id": "p03-b007",
+      "page": 3,
+      "type": "table",
+      "bbox": [
+        42,
+        183.1,
+        570,
+        434.1
+      ],
+      "text": "",
+      "text_origin": "native_pdf",
+      "logical_table_id": "table-17-1",
+      "continued": false,
+      "rows": [
+        [
+          "Case identity",
+          "",
+          "",
+          "Synthetic measurements",
+          "",
+          "",
+          "Audit fields",
+          ""
+        ],
+        [
+          "Group",
+          "Case ID",
+          "Side",
+          "Diameter\n(mm)",
+          "Flow\nindex",
+          "Window\n(days)",
+          "State",
+          "Record note"
+        ],
+        [
+          "A",
+          "T001",
+          "R",
+          "4.5",
+          "0.05",
+          "0",
+          "present",
+          "Baseline only"
+        ],
+        [
+          "",
+          "T002",
+          "L",
+          "5.0",
+          "0.50",
+          "7",
+          "not assessed",
+          "No scalar value*"
+        ],
+        [
+          "",
+          "T003",
+          "R",
+          "5.5",
+          "0.80",
+          "14",
+          "absent",
+          "Zero retained"
+        ],
+        [
+          "B",
+          "T004",
+          "L",
+          "6.0",
+          "1.00",
+          "30",
+          "present",
+          "Repeat label"
+        ],
+        [
+          "",
+          "T005",
+          "R",
+          "6.5",
+          "1.20",
+          "90",
+          "not visible",
+          "Not a negative result"
+        ],
+        [
+          "",
+          "T006",
+          "L",
+          "7.0",
+          "1.50",
+          "180",
+          "present",
+          "Synthetic pair"
+        ],
+        [
+          "C",
+          "T007",
+          "R",
+          "4.5",
+          "0.05",
+          "0",
+          "absent",
+          "Baseline only"
+        ],
+        [
+          "",
+          "T008",
+          "L",
+          "5.0",
+          "0.50",
+          "7",
+          "present",
+          "No scalar value*"
+        ],
+        [
+          "",
+          "T009",
+          "R",
+          "5.5",
+          "0.80",
+          "14",
+          "not assessed",
+          "Zero retained"
+        ]
+      ],
+      "header_rows": 2,
+      "spans": [
+        {
+          "col_start": 0,
+          "row_start": 0,
+          "col_end": 2,
+          "row_end": 0
+        },
+        {
+          "col_start": 3,
+          "row_start": 0,
+          "col_end": 5,
+          "row_end": 0
+        },
+        {
+          "col_start": 6,
+          "row_start": 0,
+          "col_end": 7,
+          "row_end": 0
+        },
+        {
+          "col_start": 0,
+          "row_start": 2,
+          "col_end": 0,
+          "row_end": 4
+        },
+        {
+          "col_start": 0,
+          "row_start": 5,
+          "col_end": 0,
+          "row_end": 7
+        },
+        {
+          "col_start": 0,
+          "row_start": 8,
+          "col_end": 0,
+          "row_end": 10
+        }
+      ],
+      "row_count": 11,
+      "column_count": 8
+    },
+    {
+      "id": "p03-b008",
+      "page": 3,
+      "type": "table_note",
+      "bbox": [
+        42,
+        444.1,
+        570,
+        454.9
+      ],
+      "text": "* A missing measurement is not the number zero. Units and labels are test data only. Table continues on printed page 404.",
+      "text_origin": "native_pdf",
+      "logical_table_id": "table-17-1"
+    },
+    {
+      "id": "p03-b009",
+      "page": 3,
+      "type": "heading",
+      "bbox": [
+        42,
+        496.1,
+        295.0,
+        510.2
+      ],
+      "text": "Grouped records",
+      "text_origin": "native_pdf",
+      "heading_level": 2
+    },
+    {
+      "id": "p03-b010",
+      "page": 3,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        517.2,
+        295.0,
+        582.7
+      ],
+      "text": "Groups A, B and C each contain three distinct cases. The group label spans the cases vertically, while the case identifier remains unique on every row. Flattening the first column should propagate only the group label and must not merge case identifiers or neighboring measurements.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p03-b011",
+      "page": 3,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        589.7,
+        295.0,
+        629.0
+      ],
+      "text": "The phrase not assessed is retained as text. It is not an instruction to invent a value. The symbol next to a note refers to the note below the table, not to the next row.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p03-b012",
+      "page": 3,
+      "type": "heading",
+      "bbox": [
+        317.0,
+        496.1,
+        570.0,
+        510.2
+      ],
+      "text": "Continuation rules",
+      "text_origin": "native_pdf",
+      "heading_level": 2
+    },
+    {
+      "id": "p03-b013",
+      "page": 3,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        517.2,
+        570.0,
+        569.6
+      ],
+      "text": "The next page repeats the title, the two header rows and the units. A single logical table should be reconstructed from both fragments. It contains eighteen body rows, regardless of how often the header is printed.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p03-b014",
+      "page": 3,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        576.6,
+        570.0,
+        642.1
+      ],
+      "text": "A parser may retain physical fragments as children of the logical table. This is preferable to losing their page coordinates. The source-side order remains T001 through T018; sorting by a measurement would change the printed record.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p04-b001",
+      "page": 4,
+      "type": "running_header",
+      "bbox": [
+        42,
+        19,
+        570,
+        31
+      ],
+      "text": "SECTION V  |  LOWER LIMB ARTERIAL RECONSTRUCTION  |  CHAPTER 17",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p04-b002",
+      "page": 4,
+      "type": "fixture_notice",
+      "bbox": [
+        42,
+        757,
+        535,
+        767
+      ],
+      "text": "SYNTHETIC PARSER FIXTURE - NOT CLINICAL GUIDANCE",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p04-b003",
+      "page": 4,
+      "type": "page_number",
+      "bbox": [
+        544,
+        755,
+        570,
+        768
+      ],
+      "text": "404",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p04-b004",
+      "page": 4,
+      "type": "table_caption",
+      "bbox": [
+        42,
+        56,
+        570,
+        67.1
+      ],
+      "text": "TABLE 17.1  Invented reconstruction records (continued)",
+      "text_origin": "native_pdf",
+      "logical_table_id": "table-17-1",
+      "continued": true
+    },
+    {
+      "id": "p04-b005",
+      "page": 4,
+      "type": "table",
+      "bbox": [
+        42,
+        73.1,
+        570,
+        324.1
+      ],
+      "text": "",
+      "text_origin": "native_pdf",
+      "logical_table_id": "table-17-1",
+      "continued": true,
+      "rows": [
+        [
+          "Case identity",
+          "",
+          "",
+          "Synthetic measurements",
+          "",
+          "",
+          "Audit fields",
+          ""
+        ],
+        [
+          "Group",
+          "Case ID",
+          "Side",
+          "Diameter\n(mm)",
+          "Flow\nindex",
+          "Window\n(days)",
+          "State",
+          "Record note"
+        ],
+        [
+          "D",
+          "T010",
+          "L",
+          "6.0",
+          "1.00",
+          "30",
+          "present",
+          "Repeat label"
+        ],
+        [
+          "",
+          "T011",
+          "R",
+          "6.5",
+          "1.20",
+          "90",
+          "absent",
+          "Not a negative result"
+        ],
+        [
+          "",
+          "T012",
+          "L",
+          "7.0",
+          "1.50",
+          "180",
+          "present",
+          "Synthetic pair"
+        ],
+        [
+          "E",
+          "T013",
+          "R",
+          "4.5",
+          "0.05",
+          "0",
+          "not visible",
+          "Baseline only"
+        ],
+        [
+          "",
+          "T014",
+          "L",
+          "5.0",
+          "0.50",
+          "7",
+          "present",
+          "No scalar value*"
+        ],
+        [
+          "",
+          "T015",
+          "R",
+          "5.5",
+          "0.80",
+          "14",
+          "not assessed",
+          "Zero retained"
+        ],
+        [
+          "F",
+          "T016",
+          "L",
+          "6.0",
+          "1.00",
+          "30",
+          "present",
+          "Repeat label"
+        ],
+        [
+          "",
+          "T017",
+          "R",
+          "6.5",
+          "1.20",
+          "90",
+          "absent",
+          "Not a negative result"
+        ],
+        [
+          "",
+          "T018",
+          "L",
+          "7.0",
+          "1.50",
+          "180",
+          "present",
+          "Synthetic pair"
+        ]
+      ],
+      "header_rows": 2,
+      "spans": [
+        {
+          "col_start": 0,
+          "row_start": 0,
+          "col_end": 2,
+          "row_end": 0
+        },
+        {
+          "col_start": 3,
+          "row_start": 0,
+          "col_end": 5,
+          "row_end": 0
+        },
+        {
+          "col_start": 6,
+          "row_start": 0,
+          "col_end": 7,
+          "row_end": 0
+        },
+        {
+          "col_start": 0,
+          "row_start": 2,
+          "col_end": 0,
+          "row_end": 4
+        },
+        {
+          "col_start": 0,
+          "row_start": 5,
+          "col_end": 0,
+          "row_end": 7
+        },
+        {
+          "col_start": 0,
+          "row_start": 8,
+          "col_end": 0,
+          "row_end": 10
+        }
+      ],
+      "row_count": 11,
+      "column_count": 8
+    },
+    {
+      "id": "p04-b006",
+      "page": 4,
+      "type": "table_note",
+      "bbox": [
+        42,
+        334.1,
+        570,
+        344.9
+      ],
+      "text": "* Header units apply to both fragments. The table ends here. No additional observation is contained in this note.",
+      "text_origin": "native_pdf",
+      "logical_table_id": "table-17-1"
+    },
+    {
+      "id": "p04-b007",
+      "page": 4,
+      "type": "heading",
+      "bbox": [
+        42,
+        382.1,
+        295.0,
+        396.2
+      ],
+      "text": "17.3.1  Denominators and qualifiers",
+      "text_origin": "native_pdf",
+      "heading_level": 2
+    },
+    {
+      "id": "p04-b008",
+      "page": 4,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        403.2,
+        295.0,
+        468.7
+      ],
+      "text": "An isolated percentage has little structural meaning unless its denominator remains accessible. The statement 3 of 12 records (25%) is therefore one linked observation in this synthetic narrative. The fraction must not migrate to a caption or be attached to the following sentence.5",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p04-b009",
+      "page": 4,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        475.7,
+        295.0,
+        541.2
+      ],
+      "text": "For the fixture, a positive label denotes only the presence of a label in the source. It does not establish a clinical outcome. Likewise, a negative statement must remain negative: no occlusion was recorded is not equivalent to occlusion was recorded. This contrast is included to expose dropped negation.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p04-b010",
+      "page": 4,
+      "type": "heading",
+      "bbox": [
+        42,
+        548.2,
+        295.0,
+        561.2
+      ],
+      "text": "A qualified statement",
+      "text_origin": "native_pdf",
+      "heading_level": 3
+    },
+    {
+      "id": "p04-b011",
+      "page": 4,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        568.2,
+        295.0,
+        620.6
+      ],
+      "text": "The narrative says that the second observation was not confirmed. This is intentionally different from saying that it was disproved. A translation or a schema that allows only true and false would erase that distinction.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p04-b012",
+      "page": 4,
+      "type": "heading",
+      "bbox": [
+        317.0,
+        382.1,
+        570.0,
+        396.2
+      ],
+      "text": "17.3.2  Traceable interpretation",
+      "text_origin": "native_pdf",
+      "heading_level": 2
+    },
+    {
+      "id": "p04-b013",
+      "page": 4,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        403.2,
+        570.0,
+        468.7
+      ],
+      "text": "Each interpretation should point to a source span, table cell or figure region. If two records disagree, both source values should remain available. Choosing the more plausible value without retaining the discrepancy would make the transformation difficult to audit.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p04-b014",
+      "page": 4,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        475.7,
+        570.0,
+        541.2
+      ],
+      "text": "The same principle applies to page references. Printed page 404 is physical PDF page 4 in this fixture. A reference to Table 17.1 should resolve to the logical table, while an instruction to inspect its second fragment should resolve to this physical page.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p04-b015",
+      "page": 4,
+      "type": "heading",
+      "bbox": [
+        317.0,
+        548.2,
+        570.0,
+        561.2
+      ],
+      "text": "Synthetic endpoints",
+      "text_origin": "native_pdf",
+      "heading_level": 3
+    },
+    {
+      "id": "p04-b016",
+      "page": 4,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        568.2,
+        570.0,
+        620.6
+      ],
+      "text": "Terms such as primary patency, reintervention and follow-up appear here as terminology specimens. The chapter defines no treatment endpoint and reports no real outcome. Its purpose is to preserve the distinction between narrative, data and layout.6",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p05-b001",
+      "page": 5,
+      "type": "running_header",
+      "bbox": [
+        42,
+        19,
+        570,
+        31
+      ],
+      "text": "SECTION V  |  LOWER LIMB ARTERIAL RECONSTRUCTION  |  CHAPTER 17",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p05-b002",
+      "page": 5,
+      "type": "fixture_notice",
+      "bbox": [
+        42,
+        757,
+        535,
+        767
+      ],
+      "text": "SYNTHETIC PARSER FIXTURE - NOT CLINICAL GUIDANCE",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p05-b003",
+      "page": 5,
+      "type": "page_number",
+      "bbox": [
+        544,
+        755,
+        570,
+        768
+      ],
+      "text": "405",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p05-b004",
+      "page": 5,
+      "type": "table_caption",
+      "bbox": [
+        42,
+        57,
+        295.0,
+        68.1
+      ],
+      "text": "TABLE 17.2  Numeric and lexical specimens",
+      "text_origin": "native_pdf",
+      "logical_table_id": "table-17-2",
+      "continued": false
+    },
+    {
+      "id": "p05-b005",
+      "page": 5,
+      "type": "table",
+      "bbox": [
+        42,
+        74.1,
+        295.0,
+        271.6
+      ],
+      "text": "",
+      "text_origin": "native_pdf",
+      "logical_table_id": "table-17-2",
+      "continued": false,
+      "rows": [
+        [
+          "Source token",
+          "Meaning in this fixture"
+        ],
+        [
+          "0.05 / 0.5 / 5.0",
+          "Three different decimal values"
+        ],
+        [
+          "1,250 / 1.250",
+          "Separator must be preserved"
+        ],
+        [
+          "≤ 0.80 / ≥ 1.20",
+          "Inequality direction matters"
+        ],
+        [
+          "5 × 103",
+          "Exponent is three"
+        ],
+        [
+          "37 °C / 12 µm",
+          "Units are part of the token"
+        ],
+        [
+          "8-12 / follow-up",
+          "Range versus lexical hyphen"
+        ],
+        [
+          "not present / present",
+          "Negation must survive"
+        ],
+        [
+          "0 / NR / blank",
+          "Zero, not reported, missing"
+        ]
+      ],
+      "header_rows": 1,
+      "spans": [],
+      "row_count": 9,
+      "column_count": 2
+    },
+    {
+      "id": "p05-b006",
+      "page": 5,
+      "type": "heading",
+      "bbox": [
+        317.0,
+        57,
+        570.0,
+        71.1
+      ],
+      "text": "17.4  A DEFINED TEST INDEX",
+      "text_origin": "native_pdf",
+      "heading_level": 2
+    },
+    {
+      "id": "p05-b007",
+      "page": 5,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        78.1,
+        570.0,
+        117.4
+      ],
+      "text": "The following index is invented for the fixture. It is not a validated vascular score. Its purpose is to test subscripts, operators and a self-contained equation.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p05-b008",
+      "page": 5,
+      "type": "equation",
+      "bbox": [
+        317.0,
+        124.4,
+        570.0,
+        135.9
+      ],
+      "text": "Dtest = (Qout / Qin) × 100%",
+      "text_origin": "native_pdf",
+      "equation_id": "eq-17-1",
+      "normalized_expression": "D_test = (Q_out / Q_in) * 100%"
+    },
+    {
+      "id": "p05-b009",
+      "page": 5,
+      "type": "paragraph",
+      "bbox": [
+        317.0,
+        145.9,
+        570.0,
+        185.2
+      ],
+      "text": "Here Qout and Qin are arbitrary nonzero scalars. If Qout = 3 and Qin = 4, the defined test value is 75%. This arithmetic example has no clinical interpretation.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p05-b010",
+      "page": 5,
+      "type": "heading",
+      "bbox": [
+        317.0,
+        192.2,
+        570.0,
+        205.2
+      ],
+      "text": "Ordered review sequence",
+      "text_origin": "native_pdf",
+      "heading_level": 3
+    },
+    {
+      "id": "p05-b011",
+      "page": 5,
+      "type": "ordered_list",
+      "bbox": [
+        317.0,
+        212.2,
+        570.0,
+        269.7
+      ],
+      "text": "1. Identify the source block.\n  a. Preserve its printed unit.\n  b. Keep any qualifier.\n2. Compare the extracted value.\n3. Record a discrepancy explicitly.",
+      "text_origin": "native_pdf",
+      "list_levels": [
+        1,
+        2,
+        2,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "p05-b012",
+      "page": 5,
+      "type": "figure",
+      "bbox": [
+        42,
+        385,
+        570,
+        629
+      ],
+      "text": "Source record\nExtraction complete?\nNo: retain issue and inspect source\nYes: compare text, table and figure links",
+      "text_origin": "native_pdf",
+      "figure_id": "fig-17-2",
+      "representation": "vector_artwork"
+    },
+    {
+      "id": "p05-b013",
+      "page": 5,
+      "type": "figure_caption",
+      "bbox": [
+        42,
+        642,
+        570,
+        664.2
+      ],
+      "text": "FIGURE 17.2 A synthetic review route. The artwork consists of vector shapes, native text and connecting arrows. A successful parser retains it as one figure region and excludes its labels from surrounding body prose.",
+      "text_origin": "native_pdf",
+      "figure_id": "fig-17-2"
+    },
+    {
+      "id": "p06-b001",
+      "page": 6,
+      "type": "running_header",
+      "bbox": [
+        42,
+        19,
+        570,
+        31
+      ],
+      "text": "SECTION V  |  LOWER LIMB ARTERIAL RECONSTRUCTION  |  CHAPTER 17",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p06-b002",
+      "page": 6,
+      "type": "fixture_notice",
+      "bbox": [
+        42,
+        757,
+        535,
+        767
+      ],
+      "text": "SYNTHETIC PARSER FIXTURE - NOT CLINICAL GUIDANCE",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p06-b003",
+      "page": 6,
+      "type": "page_number",
+      "bbox": [
+        544,
+        755,
+        570,
+        768
+      ],
+      "text": "406",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p06-b004",
+      "page": 6,
+      "type": "heading",
+      "bbox": [
+        42,
+        55,
+        295.0,
+        69.1
+      ],
+      "text": "17.5  REPORTING AND LIMITATIONS",
+      "text_origin": "native_pdf",
+      "heading_level": 2
+    },
+    {
+      "id": "p06-b005",
+      "page": 6,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        76.1,
+        295.0,
+        154.7
+      ],
+      "text": "A structured report should allow the reader to return from any extracted statement to its source. Coordinates alone are insufficient when a table continues onto another page; the logical identifier and the fragment identifier are both useful. For a scanned source, the preserved page image is the final visual reference.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p06-b006",
+      "page": 6,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        161.7,
+        295.0,
+        227.2
+      ],
+      "text": "The fixture separates a generated draft from an accepted interpretation. A later change should not overwrite the source observation or silently alter a previous version. The term reconstruction is used consistently in the glossary, but the abbreviation in the source remains available.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p06-b007",
+      "page": 6,
+      "type": "callout",
+      "bbox": [
+        42,
+        234.2,
+        295.0,
+        327.2
+      ],
+      "text": "CASE VIGNETTE 17.1 - FICTIONAL\nRecord VX-104 has a left-side label and a right-side label in different source blocks. The discrepancy is unresolved.\nExpected handling: retain both labels and flag the conflict; do not choose a side automatically.",
+      "text_origin": "native_pdf",
+      "title": "CASE VIGNETTE 17.1 - FICTIONAL"
+    },
+    {
+      "id": "p06-b008",
+      "page": 6,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        339.2,
+        295.0,
+        391.6
+      ],
+      "text": "The final page is an image-only facsimile of a synthetic insert. It includes searchable-looking text that is actually raster content. Detecting the absence of native text is therefore part of the input classification task.7,8",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p06-b009",
+      "page": 6,
+      "type": "heading",
+      "bbox": [
+        317.0,
+        55,
+        570.0,
+        69.1
+      ],
+      "text": "REFERENCES - ALL SYNTHETIC",
+      "text_origin": "native_pdf",
+      "heading_level": 2
+    },
+    {
+      "id": "p06-b010",
+      "page": 6,
+      "type": "reference",
+      "bbox": [
+        317.0,
+        76.1,
+        570.0,
+        112.1
+      ],
+      "text": "1. Fixture Editorial Group. Structured observations in an invented vascular chapter. Synthetic Vascular Methods. 2026;1:11-18. TEST-REF-001.",
+      "text_origin": "native_pdf",
+      "reference_id": "TEST-REF-001"
+    },
+    {
+      "id": "p06-b011",
+      "page": 6,
+      "type": "reference",
+      "bbox": [
+        317.0,
+        119.1,
+        570.0,
+        143.1
+      ],
+      "text": "2. Parser Bench Collective. Separating page furniture from surgical narrative. Mock Document Studies. 2026;2:21-29. TEST-REF-002.",
+      "text_origin": "native_pdf",
+      "reference_id": "TEST-REF-002"
+    },
+    {
+      "id": "p06-b012",
+      "page": 6,
+      "type": "reference",
+      "bbox": [
+        317.0,
+        150.1,
+        570.0,
+        174.1
+      ],
+      "text": "3. Illustration Test Unit. Composite figures and image-only labels. Fictional Imaging Notes. 2026;3:31-39. TEST-REF-003.",
+      "text_origin": "native_pdf",
+      "reference_id": "TEST-REF-003"
+    },
+    {
+      "id": "p06-b013",
+      "page": 6,
+      "type": "reference",
+      "bbox": [
+        317.0,
+        181.1,
+        570.0,
+        205.1
+      ],
+      "text": "4. Table Fixture Group. Continued tables with merged cells. Synthetic Layout Review. 2026;4:41-48. TEST-REF-004.",
+      "text_origin": "native_pdf",
+      "reference_id": "TEST-REF-004"
+    },
+    {
+      "id": "p06-b014",
+      "page": 6,
+      "type": "reference",
+      "bbox": [
+        317.0,
+        212.1,
+        570.0,
+        236.1
+      ],
+      "text": "5. Numeric Audit Team. Denominators, decimals and missing values. Mock Data Reports. 2026;5:51-59. TEST-REF-005.",
+      "text_origin": "native_pdf",
+      "reference_id": "TEST-REF-005"
+    },
+    {
+      "id": "p06-b015",
+      "page": 6,
+      "type": "reference",
+      "bbox": [
+        317.0,
+        243.1,
+        570.0,
+        267.1
+      ],
+      "text": "6. Terminology Test Group. Context-bound glossary entries. Synthetic Language Records. 2026;6:61-67. TEST-REF-006.",
+      "text_origin": "native_pdf",
+      "reference_id": "TEST-REF-006"
+    },
+    {
+      "id": "p06-b016",
+      "page": 6,
+      "type": "reference",
+      "bbox": [
+        317.0,
+        274.1,
+        570.0,
+        298.1
+      ],
+      "text": "7. OCR Fixture Unit. Native text versus page images. Mock Extraction Research. 2026;7:71-79. TEST-REF-007.",
+      "text_origin": "native_pdf",
+      "reference_id": "TEST-REF-007"
+    },
+    {
+      "id": "p06-b017",
+      "page": 6,
+      "type": "reference",
+      "bbox": [
+        317.0,
+        305.1,
+        570.0,
+        329.1
+      ],
+      "text": "8. Version Test Group. Traceable correction of an invented record. Fictional Audit Journal. 2026;8:81-89. TEST-REF-008.",
+      "text_origin": "native_pdf",
+      "reference_id": "TEST-REF-008"
+    },
+    {
+      "id": "p06-b018",
+      "page": 6,
+      "type": "table_caption",
+      "bbox": [
+        42,
+        552,
+        570,
+        563.1
+      ],
+      "text": "TABLE 17.3  Mixed-script glossary specimens",
+      "text_origin": "native_pdf",
+      "logical_table_id": "table-17-3",
+      "continued": false
+    },
+    {
+      "id": "p06-b019",
+      "page": 6,
+      "type": "table",
+      "bbox": [
+        42,
+        569.1,
+        570,
+        722.6
+      ],
+      "text": "",
+      "text_origin": "native_pdf",
+      "logical_table_id": "table-17-3",
+      "continued": false,
+      "rows": [
+        [
+          "English source",
+          "Georgian terminology specimen"
+        ],
+        [
+          "reconstruction",
+          "რეკონსტრუქცია"
+        ],
+        [
+          "endovascular treatment",
+          "ენდოვასკულური მკურნალობა"
+        ],
+        [
+          "inflow",
+          "შემომავალი ნაკადი"
+        ],
+        [
+          "outflow",
+          "გამომავალი ნაკადი"
+        ],
+        [
+          "not assessed",
+          "არ შეფასებულა"
+        ],
+        [
+          "follow-up",
+          "შემდგომი დაკვირვება"
+        ]
+      ],
+      "header_rows": 1,
+      "spans": [],
+      "row_count": 7,
+      "column_count": 2
+    },
+    {
+      "id": "p06-b020",
+      "page": 6,
+      "type": "note",
+      "bbox": [
+        42,
+        730.6,
+        570,
+        741.4
+      ],
+      "text": "Bibliography entries are invented and must not be treated as real literature. The glossary is a parsing specimen, not a comprehensive terminology standard.",
+      "text_origin": "native_pdf"
+    },
+    {
+      "id": "p07-b001",
+      "page": 7,
+      "type": "running_header",
+      "bbox": [
+        42,
+        19,
+        570,
+        31
+      ],
+      "text": "SECTION V  |  LOWER LIMB ARTERIAL RECONSTRUCTION  |  CHAPTER 17",
+      "text_origin": "page_image_ocr"
+    },
+    {
+      "id": "p07-b002",
+      "page": 7,
+      "type": "fixture_notice",
+      "bbox": [
+        42,
+        757,
+        535,
+        767
+      ],
+      "text": "SYNTHETIC PARSER FIXTURE - NOT CLINICAL GUIDANCE",
+      "text_origin": "page_image_ocr"
+    },
+    {
+      "id": "p07-b003",
+      "page": 7,
+      "type": "page_number",
+      "bbox": [
+        544,
+        755,
+        570,
+        768
+      ],
+      "text": "407",
+      "text_origin": "page_image_ocr"
+    },
+    {
+      "id": "p07-b004",
+      "page": 7,
+      "type": "heading",
+      "bbox": [
+        42,
+        55,
+        570,
+        69.1
+      ],
+      "text": "17.6  IMAGE-ONLY SUPPLEMENT",
+      "text_origin": "page_image_ocr",
+      "heading_level": 2
+    },
+    {
+      "id": "p07-b005",
+      "page": 7,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        76.1,
+        570,
+        99.1
+      ],
+      "text": "SYNTHETIC SCANNED INSERT. This whole page is a raster image in the delivered PDF. It has no hidden searchable text layer. Its words, table and diagram require optical character recognition.",
+      "text_origin": "page_image_ocr"
+    },
+    {
+      "id": "p07-b006",
+      "page": 7,
+      "type": "heading",
+      "bbox": [
+        42,
+        143,
+        295.0,
+        157.1
+      ],
+      "text": "Supplemental observation",
+      "text_origin": "page_image_ocr",
+      "heading_level": 2
+    },
+    {
+      "id": "p07-b007",
+      "page": 7,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        164.1,
+        295.0,
+        216.5
+      ],
+      "text": "Specimen SCAN-201 retains the statement: no occlusion was recorded. The number 0.05 must remain distinct from 0.5. The side is L. Every observation on this page is fictional and supplied only for parser testing.",
+      "text_origin": "page_image_ocr"
+    },
+    {
+      "id": "p07-b008",
+      "page": 7,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        223.5,
+        295.0,
+        275.9
+      ],
+      "text": "A parser should identify this page as requiring OCR while preserving the original image. Page furniture still remains separate from the main text. A failed OCR attempt is a processing issue, not evidence that the source page was empty.",
+      "text_origin": "page_image_ocr"
+    },
+    {
+      "id": "p07-b009",
+      "page": 7,
+      "type": "heading",
+      "bbox": [
+        317.0,
+        143,
+        570.0,
+        157.1
+      ],
+      "text": "Image and caption",
+      "text_origin": "page_image_ocr",
+      "heading_level": 2
+    },
+    {
+      "id": "p07-b010",
+      "page": 7,
+      "type": "figure",
+      "bbox": [
+        317.0,
+        184,
+        570.0,
+        368
+      ],
+      "text": "Inflow\nBranch A\nBranch B",
+      "text_origin": "page_image_ocr",
+      "figure_id": "fig-17-3",
+      "representation": "inside_page_raster"
+    },
+    {
+      "id": "p07-b011",
+      "page": 7,
+      "type": "figure_caption",
+      "bbox": [
+        317.0,
+        380,
+        570.0,
+        402.2
+      ],
+      "text": "FIGURE 17.3 Original scanned diagram. The figure and its caption are both rasterized with the page.",
+      "text_origin": "page_image_ocr",
+      "figure_id": "fig-17-3"
+    },
+    {
+      "id": "p07-b012",
+      "page": 7,
+      "type": "table_caption",
+      "bbox": [
+        42,
+        466,
+        570,
+        477.1
+      ],
+      "text": "TABLE 17.4  Image-only observation grid",
+      "text_origin": "page_image_ocr",
+      "logical_table_id": "table-17-4",
+      "continued": false
+    },
+    {
+      "id": "p07-b013",
+      "page": 7,
+      "type": "table",
+      "bbox": [
+        42,
+        483.1,
+        570,
+        592.6
+      ],
+      "text": "",
+      "text_origin": "page_image_ocr",
+      "logical_table_id": "table-17-4",
+      "continued": false,
+      "rows": [
+        [
+          "Record",
+          "Side",
+          "Value",
+          "Qualifier"
+        ],
+        [
+          "SCAN-201",
+          "L",
+          "0.05",
+          "not confirmed"
+        ],
+        [
+          "SCAN-202",
+          "R",
+          "0.50",
+          "not assessed"
+        ],
+        [
+          "SCAN-203",
+          "L",
+          "0",
+          "measured zero"
+        ],
+        [
+          "SCAN-204",
+          "R",
+          "NR",
+          "not reported"
+        ]
+      ],
+      "header_rows": 1,
+      "spans": [],
+      "row_count": 5,
+      "column_count": 4
+    },
+    {
+      "id": "p07-b014",
+      "page": 7,
+      "type": "paragraph",
+      "bbox": [
+        42,
+        613.6,
+        570,
+        636.6
+      ],
+      "text": "SCAN CHECK. OCR should recover four data rows. No occlusion was recorded remains a negative statement. The page number is 407, while its physical PDF index is 7.",
+      "text_origin": "page_image_ocr"
+    }
+  ],
+  "tables": [
+    {
+      "id": "table-17-1",
+      "number": "17.1",
+      "title": "Invented reconstruction records",
+      "logical_header_rows": [
+        [
+          "Case identity",
+          "",
+          "",
+          "Synthetic measurements",
+          "",
+          "",
+          "Audit fields",
+          ""
+        ],
+        [
+          "Group",
+          "Case ID",
+          "Side",
+          "Diameter<br/>(mm)",
+          "Flow<br/>index",
+          "Window<br/>(days)",
+          "State",
+          "Record note"
+        ]
+      ],
+      "body_rows": [
+        [
+          "A",
+          "T001",
+          "R",
+          "4.5",
+          "0.05",
+          "0",
+          "present",
+          "Baseline only"
+        ],
+        [
+          "A",
+          "T002",
+          "L",
+          "5.0",
+          "0.50",
+          "7",
+          "not assessed",
+          "No scalar value*"
+        ],
+        [
+          "A",
+          "T003",
+          "R",
+          "5.5",
+          "0.80",
+          "14",
+          "absent",
+          "Zero retained"
+        ],
+        [
+          "B",
+          "T004",
+          "L",
+          "6.0",
+          "1.00",
+          "30",
+          "present",
+          "Repeat label"
+        ],
+        [
+          "B",
+          "T005",
+          "R",
+          "6.5",
+          "1.20",
+          "90",
+          "not visible",
+          "Not a negative result"
+        ],
+        [
+          "B",
+          "T006",
+          "L",
+          "7.0",
+          "1.50",
+          "180",
+          "present",
+          "Synthetic pair"
+        ],
+        [
+          "C",
+          "T007",
+          "R",
+          "4.5",
+          "0.05",
+          "0",
+          "absent",
+          "Baseline only"
+        ],
+        [
+          "C",
+          "T008",
+          "L",
+          "5.0",
+          "0.50",
+          "7",
+          "present",
+          "No scalar value*"
+        ],
+        [
+          "C",
+          "T009",
+          "R",
+          "5.5",
+          "0.80",
+          "14",
+          "not assessed",
+          "Zero retained"
+        ],
+        [
+          "D",
+          "T010",
+          "L",
+          "6.0",
+          "1.00",
+          "30",
+          "present",
+          "Repeat label"
+        ],
+        [
+          "D",
+          "T011",
+          "R",
+          "6.5",
+          "1.20",
+          "90",
+          "absent",
+          "Not a negative result"
+        ],
+        [
+          "D",
+          "T012",
+          "L",
+          "7.0",
+          "1.50",
+          "180",
+          "present",
+          "Synthetic pair"
+        ],
+        [
+          "E",
+          "T013",
+          "R",
+          "4.5",
+          "0.05",
+          "0",
+          "not visible",
+          "Baseline only"
+        ],
+        [
+          "E",
+          "T014",
+          "L",
+          "5.0",
+          "0.50",
+          "7",
+          "present",
+          "No scalar value*"
+        ],
+        [
+          "E",
+          "T015",
+          "R",
+          "5.5",
+          "0.80",
+          "14",
+          "not assessed",
+          "Zero retained"
+        ],
+        [
+          "F",
+          "T016",
+          "L",
+          "6.0",
+          "1.00",
+          "30",
+          "present",
+          "Repeat label"
+        ],
+        [
+          "F",
+          "T017",
+          "R",
+          "6.5",
+          "1.20",
+          "90",
+          "absent",
+          "Not a negative result"
+        ],
+        [
+          "F",
+          "T018",
+          "L",
+          "7.0",
+          "1.50",
+          "180",
+          "present",
+          "Synthetic pair"
+        ]
+      ],
+      "expected_body_row_count": 18,
+      "column_count": 8,
+      "fragments": [
+        {
+          "page": 3,
+          "block_id": "p03-b007",
+          "logical_body_row_indices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "repeated_header": false,
+          "spans": [
+            {
+              "col_start": 0,
+              "row_start": 0,
+              "col_end": 2,
+              "row_end": 0
+            },
+            {
+              "col_start": 3,
+              "row_start": 0,
+              "col_end": 5,
+              "row_end": 0
+            },
+            {
+              "col_start": 6,
+              "row_start": 0,
+              "col_end": 7,
+              "row_end": 0
+            },
+            {
+              "col_start": 0,
+              "row_start": 2,
+              "col_end": 0,
+              "row_end": 4
+            },
+            {
+              "col_start": 0,
+              "row_start": 5,
+              "col_end": 0,
+              "row_end": 7
+            },
+            {
+              "col_start": 0,
+              "row_start": 8,
+              "col_end": 0,
+              "row_end": 10
+            }
+          ]
+        },
+        {
+          "page": 4,
+          "block_id": "p04-b005",
+          "logical_body_row_indices": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17
+          ],
+          "repeated_header": true,
+          "spans": [
+            {
+              "col_start": 0,
+              "row_start": 0,
+              "col_end": 2,
+              "row_end": 0
+            },
+            {
+              "col_start": 3,
+              "row_start": 0,
+              "col_end": 5,
+              "row_end": 0
+            },
+            {
+              "col_start": 6,
+              "row_start": 0,
+              "col_end": 7,
+              "row_end": 0
+            },
+            {
+              "col_start": 0,
+              "row_start": 2,
+              "col_end": 0,
+              "row_end": 4
+            },
+            {
+              "col_start": 0,
+              "row_start": 5,
+              "col_end": 0,
+              "row_end": 7
+            },
+            {
+              "col_start": 0,
+              "row_start": 8,
+              "col_end": 0,
+              "row_end": 10
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "table-17-2",
+      "number": "17.2",
+      "page": 5,
+      "column_count": 2,
+      "header_rows": 1,
+      "body_rows": [
+        [
+          "0.05 / 0.5 / 5.0",
+          "Three different decimal values"
+        ],
+        [
+          "1,250 / 1.250",
+          "Separator must be preserved"
+        ],
+        [
+          "≤ 0.80 / ≥ 1.20",
+          "Inequality direction matters"
+        ],
+        [
+          "5 × 103",
+          "Exponent is three"
+        ],
+        [
+          "37 °C / 12 µm",
+          "Units are part of the token"
+        ],
+        [
+          "8-12 / follow-up",
+          "Range versus lexical hyphen"
+        ],
+        [
+          "not present / present",
+          "Negation must survive"
+        ],
+        [
+          "0 / NR / blank",
+          "Zero, not reported, missing"
+        ]
+      ],
+      "expected_body_row_count": 8,
+      "fragments": [
+        {
+          "page": 5,
+          "block_id": "p05-b005"
+        }
+      ]
+    },
+    {
+      "id": "table-17-3",
+      "number": "17.3",
+      "page": 6,
+      "column_count": 2,
+      "header_rows": 1,
+      "body_rows": [
+        [
+          "reconstruction",
+          "რეკონსტრუქცია"
+        ],
+        [
+          "endovascular treatment",
+          "ენდოვასკულური მკურნალობა"
+        ],
+        [
+          "inflow",
+          "შემომავალი ნაკადი"
+        ],
+        [
+          "outflow",
+          "გამომავალი ნაკადი"
+        ],
+        [
+          "not assessed",
+          "არ შეფასებულა"
+        ],
+        [
+          "follow-up",
+          "შემდგომი დაკვირვება"
+        ]
+      ],
+      "expected_body_row_count": 6,
+      "fragments": [
+        {
+          "page": 6,
+          "block_id": "p06-b019"
+        }
+      ]
+    },
+    {
+      "id": "table-17-4",
+      "number": "17.4",
+      "page": 7,
+      "column_count": 4,
+      "header_rows": 1,
+      "body_rows": [
+        [
+          "SCAN-201",
+          "L",
+          "0.05",
+          "not confirmed"
+        ],
+        [
+          "SCAN-202",
+          "R",
+          "0.50",
+          "not assessed"
+        ],
+        [
+          "SCAN-203",
+          "L",
+          "0",
+          "measured zero"
+        ],
+        [
+          "SCAN-204",
+          "R",
+          "NR",
+          "not reported"
+        ]
+      ],
+      "expected_body_row_count": 4,
+      "fragments": [
+        {
+          "page": 7,
+          "block_id": "p07-b013"
+        }
+      ],
+      "requires_ocr": true
+    }
+  ],
+  "figures": [
+    {
+      "id": "fig-17-1",
+      "number": "17.1",
+      "page": 2,
+      "bbox": [
+        42,
+        358,
+        570,
+        572.5
+      ],
+      "representation": "embedded_raster",
+      "panels": [
+        "A",
+        "B"
+      ],
+      "embedded_text_expected": [
+        "Synthetic vessel map",
+        "Inflow",
+        "Native segment",
+        "Conduit",
+        "Outflow A",
+        "Outflow B",
+        "Illustrative waveform",
+        "Signal amplitude",
+        "Time (arbitrary units)"
+      ],
+      "not_native_text": [
+        "Synthetic vessel map",
+        "Native segment",
+        "Illustrative waveform",
+        "Signal amplitude",
+        "Time (arbitrary units)"
+      ]
+    },
+    {
+      "id": "fig-17-2",
+      "number": "17.2",
+      "page": 5,
+      "bbox": [
+        42,
+        385,
+        570,
+        629
+      ],
+      "representation": "vector_artwork",
+      "embedded_text_expected": [
+        "Source record",
+        "Extraction complete?",
+        "No: retain issue",
+        "Yes: compare text,"
+      ],
+      "node_count": 4
+    },
+    {
+      "id": "fig-17-3",
+      "number": "17.3",
+      "page": 7,
+      "bbox": [
+        317.0,
+        184,
+        570.0,
+        368
+      ],
+      "representation": "inside_page_raster",
+      "embedded_text_expected": [
+        "Inflow",
+        "Branch A",
+        "Branch B"
+      ]
+    }
+  ],
+  "references": [
+    {
+      "id": "TEST-REF-001",
+      "number": 1,
+      "page": 6,
+      "text": "Fixture Editorial Group. Structured observations in an invented vascular chapter. Synthetic Vascular Methods. 2026;1:11-18. TEST-REF-001.",
+      "fictional": true
+    },
+    {
+      "id": "TEST-REF-002",
+      "number": 2,
+      "page": 6,
+      "text": "Parser Bench Collective. Separating page furniture from surgical narrative. Mock Document Studies. 2026;2:21-29. TEST-REF-002.",
+      "fictional": true
+    },
+    {
+      "id": "TEST-REF-003",
+      "number": 3,
+      "page": 6,
+      "text": "Illustration Test Unit. Composite figures and image-only labels. Fictional Imaging Notes. 2026;3:31-39. TEST-REF-003.",
+      "fictional": true
+    },
+    {
+      "id": "TEST-REF-004",
+      "number": 4,
+      "page": 6,
+      "text": "Table Fixture Group. Continued tables with merged cells. Synthetic Layout Review. 2026;4:41-48. TEST-REF-004.",
+      "fictional": true
+    },
+    {
+      "id": "TEST-REF-005",
+      "number": 5,
+      "page": 6,
+      "text": "Numeric Audit Team. Denominators, decimals and missing values. Mock Data Reports. 2026;5:51-59. TEST-REF-005.",
+      "fictional": true
+    },
+    {
+      "id": "TEST-REF-006",
+      "number": 6,
+      "page": 6,
+      "text": "Terminology Test Group. Context-bound glossary entries. Synthetic Language Records. 2026;6:61-67. TEST-REF-006.",
+      "fictional": true
+    },
+    {
+      "id": "TEST-REF-007",
+      "number": 7,
+      "page": 6,
+      "text": "OCR Fixture Unit. Native text versus page images. Mock Extraction Research. 2026;7:71-79. TEST-REF-007.",
+      "fictional": true
+    },
+    {
+      "id": "TEST-REF-008",
+      "number": 8,
+      "page": 6,
+      "text": "Version Test Group. Traceable correction of an invented record. Fictional Audit Journal. 2026;8:81-89. TEST-REF-008.",
+      "fictional": true
+    }
+  ],
+  "test_cases": [
+    {
+      "id": "reading-order",
+      "assertion": "Read full-width opening, then left column, then right column; do not interleave line pairs."
+    },
+    {
+      "id": "furniture",
+      "assertion": "Repeated running headers, fixture notices and printed page numbers are excluded from chapter body."
+    },
+    {
+      "id": "continued-table",
+      "assertion": "Table 17.1 is one logical table with 18 unique cases and 2 physical fragments."
+    },
+    {
+      "id": "merged-cells",
+      "assertion": "Each Table 17.1 fragment has 3 merged column-group headers and 3 vertical group-label spans."
+    },
+    {
+      "id": "native-raster",
+      "assertion": "Figure 17.1 is one composite figure with 2 panels and image-only labels."
+    },
+    {
+      "id": "vector-figure",
+      "assertion": "Figure 17.2 is one figure even though no standalone image XObject represents it."
+    },
+    {
+      "id": "ocr-page",
+      "assertion": "Physical page 7 has an empty native text layer, but contains body text, a figure and a 4-row table."
+    },
+    {
+      "id": "negation",
+      "assertion": "no occlusion was recorded, not confirmed, not assessed and absent remain distinct."
+    },
+    {
+      "id": "numeric",
+      "assertion": "Preserve 0.05, 0.5, 5.0, 1,250, 1.250, inequality direction, units, exponent and denominator."
+    },
+    {
+      "id": "mixed-script",
+      "assertion": "Recover all 6 Georgian glossary strings without replacement characters."
+    },
+    {
+      "id": "ligatures",
+      "assertion": "Normalize ﬁnding to finding and ﬂow to flow without word breaks, or preserve the original codepoints."
+    },
+    {
+      "id": "hyphenation",
+      "assertion": "Join reconstruc- plus tion only as the recorded discretionary break; preserve follow-up."
+    },
+    {
+      "id": "cross-references",
+      "assertion": "Resolve Figure/Fig. 17.1 and both Table 17.1 fragments; distinguish printed pages from physical pages."
+    },
+    {
+      "id": "anti-hardcoding",
+      "assertion": "Use this oracle only for evaluation. Parser implementation must not hardcode fixture IDs, positions or answers."
+    }
+  ],
+  "page_count": 7,
+  "digital_text_pages": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "image_only_pages": [
+    7
+  ],
+  "printed_page_range": [
+    401,
+    407
+  ],
+  "expected_counts": {
+    "logical_tables": 4,
+    "physical_table_fragments": 5,
+    "semantic_figures": 3,
+    "raster_figure_on_native_page": 1,
+    "vector_figures": 1,
+    "figures_inside_scanned_page": 1,
+    "synthetic_references": 8,
+    "continued_table_body_rows": 18,
+    "glossary_body_rows": 6,
+    "scanned_table_body_rows": 4
+  },
+  "pdf_sha256": "4a9d578c5f89e0eb7fba5660f9850366eb440ba2c4443b3ec007aeeb89ac6646"
+}

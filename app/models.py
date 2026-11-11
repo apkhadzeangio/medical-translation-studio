@@ -33,7 +33,8 @@ DOCUMENT_FORMATS = ("pdf", "docx")
 DOCUMENT_STATUSES = ("uploaded", "parsing", "parsed", "failed")
 CHAPTER_STATUSES = ("pending", "translating", "reviewing", "qa", "done", "failed")
 BLOCK_TYPES = (
-    "heading", "paragraph", "list_item", "table", "figure", "caption", "footnote", "reference", "other",
+    "heading", "paragraph", "list_item", "list", "table", "figure", "caption", "footnote", "reference",
+    "callout", "equation", "other",
 )
 ASSET_KINDS = ("figure", "table_image", "page_image")
 SEGMENT_STATUSES = ("pending", "translated", "reviewed", "flagged", "approved")
