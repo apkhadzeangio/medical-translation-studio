@@ -46,7 +46,8 @@ def main() -> None:
           f"body font: {parsed.body_size}pt   dropped headers/footers: {parsed.dropped}")
     print("types:", dict(Counter(c.type for c in parsed.chunks)))
     print("columns per page:", dict(Counter(p.columns for p in parsed.pages)))
-    print(f"complex pages: {sum(p.complex for p in parsed.pages)}   scanned pages: "
+    print(f"tables: {sum(p.tables for p in parsed.pages)}   figures: {sum(p.figures for p in parsed.pages)}   "
+          f"complex pages: {sum(p.complex for p in parsed.pages)}   scanned pages: "
           f"{sum(p.scanned for p in parsed.pages)}")
     print(f"chapters: {len(parsed.chapters)}")
     for ch in parsed.chapters[:40]:
@@ -56,7 +57,13 @@ def main() -> None:
     if args.text:
         for c in parsed.chunks:
             tag = f"{c.type}{c.level or ''}"
-            print(f"\n[p{c.page} {tag}] {c.text}")
+            if c.type == "table":
+                body = "\n".join("  | " + " | ".join(row) for row in c.rows or [])
+                print(f"\n[p{c.page} table, found by {c.detection}]\n{body}")
+            elif c.type == "figure":
+                print(f"\n[p{c.page} figure, {c.detection}] labels: {c.labels}")
+            else:
+                print(f"\n[p{c.page} {tag}] {c.text}")
     if args.json:
         args.json.write_text(json.dumps(asdict(parsed), ensure_ascii=False, indent=1), encoding="utf-8")
         print("written:", args.json)

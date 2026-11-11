@@ -178,7 +178,7 @@ def test_store_parsed_writes_chapters_blocks_segments(migrated_db):
         s.flush()
         stats = store_parsed(s, doc, parsed)
         s.commit()
-        assert stats == {"chapters": 2, "blocks": 26, "segments": 26}
+        assert stats == {"chapters": 2, "blocks": 26, "segments": 26, "assets": 0}
         assert (doc.status, doc.page_count) == ("parsed", 4)
         assert doc.meta["parse"]["dropped_running_heads"] == 8
 

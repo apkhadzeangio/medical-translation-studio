@@ -80,3 +80,54 @@ def build_mixed() -> bytes:
     box(page, full, y, "1. Sample AB, Writer CD. An invented reference title. J Synth Test. 2020;1:1-9.", height=40)
     box(page, full, 760, "* Invented footnote in a small font near the bottom.", size=SMALL, height=30)
     return doc.tobytes()
+
+
+TABLE = [["Diameter", "Interval", "Note"],
+         ["3.0-3.9 cm", "36 months", "invented"],
+         ["4.0-4.9 cm", "12 months", "invented"],
+         ["5.0-5.4 cm", "6 months", "invented"]]
+
+
+def _cells(page, x0, y0, col_w, row_h, rows, *, grid: bool):
+    for r, row in enumerate(rows):
+        for c, cell in enumerate(row):
+            page.insert_text((x0 + c * col_w + 4, y0 + r * row_h + 14), cell, fontsize=9,
+                             fontname="hebo" if r == 0 else "helv")
+    width, height = col_w * len(rows[0]), row_h * len(rows)
+    if grid:
+        for r in range(len(rows) + 1):
+            page.draw_line((x0, y0 + r * row_h), (x0 + width, y0 + r * row_h))
+        for c in range(len(rows[0]) + 1):
+            page.draw_line((x0 + c * col_w, y0), (x0 + c * col_w, y0 + height))
+    else:   # "booktabs": top rule, rule under the header, bottom rule
+        for y in (y0, y0 + row_h, y0 + height):
+            page.draw_line((x0, y), (x0 + width, y))
+    return y0 + height
+
+
+def build_table(grid: bool = True) -> bytes:
+    doc = pymupdf.open()
+    page = doc.new_page(width=W, height=H)
+    full = (60, 540)
+    y = box(page, full, 90, para(1), height=80) + 12
+    y = box(page, full, y, "Table 2.1 Invented surveillance intervals.", size=8, height=20) + 6
+    y = _cells(page, 60, y, 160, 20, TABLE, grid=grid) + 16
+    box(page, full, y, para(2), height=80)
+    return doc.tobytes()
+
+
+def build_vector_figure() -> bytes:
+    """A small bar chart drawn with vector shapes, with labels inside and a caption below."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=W, height=H)
+    full = (60, 540)
+    y = box(page, full, 90, para(1), height=80) + 12
+    page.draw_line((80, y), (80, y + 150))
+    page.draw_line((80, y + 150), (330, y + 150))
+    for i, h in enumerate((40, 90, 120, 70)):
+        page.draw_rect(pymupdf.Rect(100 + i * 55, y + 150 - h, 140 + i * 55, y + 150), fill=(0.3, 0.5, 0.8))
+        page.insert_text((104 + i * 55, y + 144 - h), f"{h}%", fontsize=7)
+    y += 160
+    y = box(page, full, y, "Figure 3.2 Invented bar chart of nothing in particular.", size=8, height=20) + 12
+    box(page, full, y, para(2), height=80)
+    return doc.tobytes()

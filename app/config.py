@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     api_token: str | None = None  # if set, required as "Authorization: Bearer <token>" on /api/*
 
+    storage_dir: str = "./data"  # local file storage for source files and extracted assets
+
     # LLM gateway. Any OpenAI-compatible endpoint; several keys are used round-robin.
     llm_base_url: str = "https://api.openai.com/v1"
     llm_api_keys: str = ""  # comma-separated
