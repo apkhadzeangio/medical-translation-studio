@@ -250,7 +250,7 @@ class TMEntry(Base):
     """Translation memory: approved source/target pairs. Embeddings are added in PR-7."""
 
     __tablename__ = "tm_entries"
-    __table_args__ = (Index("ix_tm_project_hash", "project_id", "source_hash"),)
+    __table_args__ = (Index("uq_tm_project_hash", "project_id", "source_hash", unique=True),)
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))

@@ -1,8 +1,10 @@
 import secrets
+import threading
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 
-from app.api import health, projects
+from app.api import documents, glossary, health, projects, translation
 from app.config import get_settings
 
 
@@ -16,10 +18,24 @@ def require_token(authorization: str | None = Header(default=None)) -> None:
         raise HTTPException(status_code=401, detail="invalid or missing token")
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    worker = None
+    if get_settings().embedded_worker:
+        from app.db import get_engine
+        from app.worker import Worker, default_handlers
+        worker = Worker(get_engine(), default_handlers())
+        threading.Thread(target=worker.run_forever, name="mts-worker", daemon=True).start()
+    yield
+    if worker is not None:
+        worker.stop()
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="Medical Translation Studio", version="0.1.0")
+    app = FastAPI(title="Medical Translation Studio", version="0.1.0", lifespan=lifespan)
     app.include_router(health.router)
-    app.include_router(projects.router, dependencies=[Depends(require_token)])
+    for router in (projects.router, documents.router, glossary.router, translation.router):
+        app.include_router(router, dependencies=[Depends(require_token)])
     return app
 
 

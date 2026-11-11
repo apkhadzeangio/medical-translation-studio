@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-4c — parser tuned on a ground-truth chapter.** Foundation, LLM gateway, and a universal PDF parser.
+Status: **PR-8 — translation stage.** A parsed chapter can be translated end to end; so far only against a simulated model.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
@@ -25,6 +25,21 @@ The earlier one-file pilot lives in `tools/spike/`.
 | GET | `/health/db` | readiness: database reachable and migrated |
 | POST / GET | `/api/projects` | create / list projects |
 | GET | `/api/projects/{id}` | one project |
+| POST / GET | `/api/projects/{id}/documents` | upload a PDF (queued for parsing) / list |
+| GET | `/api/documents/{id}` | status, chapters, block and segment counts, parse report |
+| POST | `/api/documents/{id}/reparse` | parse again, replacing the previous result |
+| GET | `/api/projects/{id}/jobs` | job counts by kind and status |
+| POST | `/api/projects/{id}/jobs/retry-failed` | requeue failed jobs |
+| GET / POST | `/api/projects/{id}/glossary` | search terms / add or change one |
+| POST | `/api/projects/{id}/glossary/import` | CSV or TSV: English term, Georgian term, optional note |
+| GET | `/api/projects/{id}/glossary/export` | glossary as CSV |
+| DELETE | `/api/glossary/{term_id}` | remove a term |
+| POST | `/api/projects/{id}/tm/import` | CSV or TSV of translated sentence pairs |
+| GET | `/api/projects/{id}/tm` | translation-memory entry counts by origin |
+| POST | `/api/chapters/{id}/translate` | queue a chapter; returns chunks, words and a rough cost estimate |
+| POST | `/api/documents/{id}/translate` | queue every chapter of a parsed document |
+| GET | `/api/chapters/{id}/segments` | source and translation side by side with open QA flags |
+| GET | `/api/projects/{id}/cost` | budget, amount spent, tokens and cost per stage |
 
 `/api/*` requires `Authorization: Bearer $API_TOKEN` when `API_TOKEN` is set.
 
@@ -41,6 +56,51 @@ The earlier one-file pilot lives in `tools/spike/`.
 | `glossary_terms`, `tm_entries` | terminology and translation memory |
 | `jobs` | Postgres work queue with idempotency keys |
 | `llm_calls` | token and cost ledger per request |
+
+## Translation stage
+
+`app/pipeline/translate.py` turns a chapter into `translate_chunk` jobs (about
+`TRANSLATE_CHUNK_WORDS` source words each). For each chunk:
+
+1. segments already translated are skipped, so a retry pays only for what is missing
+2. identical source text found in the translation memory is reused without a model call
+3. the rest goes to the model with the chapter title, the glossary terms that occur in the
+   chunk, and the preceding text as context
+4. an answer that does not cover every segment is rejected whole and the job retries
+5. every translation is checked without a model (`app/pipeline/checks.py`): numbers,
+   `<sup>`/`<sub>` markup, inequality and unit symbols, untranslated text, length, glossary.
+   A critical finding marks the segment `flagged` and keeps it out of the translation memory.
+
+References, equations and the chapter numeral are not sent for translation.
+
+## Glossary and translation memory
+
+`app/terminology.py`:
+
+- **Glossary.** All of a project's terms compile into one pattern: whole words only, the
+  longest term wins (`abdominal aortic aneurysm` over `aneurysm`), plurals match. `find()`
+  gives the terms present in a chunk (these go into the translation prompt); `violations()`
+  lists terms whose Georgian equivalent is missing from a translation, comparing word stems
+  so that case endings do not raise false alarms.
+- **Translation memory.** Exact reuse of an earlier translation of the same source text
+  (whitespace-insensitive, case-sensitive). An entry approved by a person is never overwritten
+  by a machine translation. Fuzzy matching is not implemented.
+
+## Background jobs
+
+`app/jobs.py` is a Postgres queue (`FOR UPDATE SKIP LOCKED`), `app/worker.py` runs it:
+
+    python -m app.worker
+
+- enqueueing is idempotent on the job key, so planning twice never duplicates work
+- each job runs in one transaction; a failure rolls back and retries with backoff (5 attempts)
+- a job left running by a dead worker is requeued after 30 minutes
+- a job that hits the budget cap is paused for an hour without spending an attempt
+- `app/chunking.py` groups a chapter's segments into translation chunks without splitting a
+  table, list or callout, and without leaving a heading at the end of a chunk
+
+While storage is a local directory the worker must see the same disk as the API: set
+`EMBEDDED_WORKER=true` to run it inside the API process (single Railway service with a volume).
 
 ## PDF ingestion
 
