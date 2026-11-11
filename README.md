@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-9 — review and QA.** A chapter runs translate → medical review → independent QA automatically; so far only against a simulated model.
+Status: **PR-10 — export.** PDF in, translated DOCX/PDF out; the model stages have so far only run against a simulated model.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
@@ -43,6 +43,8 @@ The earlier one-file pilot lives in `tools/spike/`.
 | GET | `/api/chapters/{id}/segments` | source and translation side by side with open QA flags |
 | GET | `/api/segments/{id}/versions` | every stage's text and every QA finding for one segment |
 | GET | `/api/projects/{id}/cost` | budget, amount spent, tokens and cost per stage |
+| GET | `/api/chapters/{id}/export?format=docx\|pdf&mode=ka\|bilingual` | one chapter as a file |
+| GET | `/api/documents/{id}/export?format=…&mode=…` | all chapters in one file |
 
 `/api/*` requires `Authorization: Bearer $API_TOKEN` when `API_TOKEN` is set.
 
@@ -75,6 +77,25 @@ The earlier one-file pilot lives in `tools/spike/`.
    A critical finding marks the segment `flagged` and keeps it out of the translation memory.
 
 References, equations and the chapter numeral are not sent for translation.
+
+## Export
+
+`app/export/`:
+
+- **`mode=ka`** — the Georgian book: headings by level, justified paragraphs, lists, callouts as
+  shaded boxes, tables with merged cells, figures taken from the source PDF, captions, notes.
+  A table continued over several pages is joined into one, with its header printed once.
+  References and equations are printed as in the source. `<sup>`/`<sub>` become real
+  superscript and subscript.
+- **`mode=bilingual`** — a landscape review table, one row per segment: page, English, Georgian,
+  open QA findings; flagged rows are tinted.
+- A segment with no translation yet is printed in English on a yellow background (and left
+  empty in the bilingual table), so a gap is never mistaken for finished text.
+- **PDF** is the DOCX converted by LibreOffice, so both always show the same content. The
+  Docker image installs LibreOffice and Georgian-capable fonts; without it the API answers 501.
+
+`EXPORT_FONT` (default Sylfaen) is the font named in the DOCX. Export is generated on request;
+a whole book will take a while and will move to a background job with the web console.
 
 ## Review and QA
 

@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     storage_dir: str = "./data"  # local file storage for source files and extracted assets
     max_upload_mb: int = 500
+    export_font: str = "Sylfaen"   # Georgian-capable font named in exported documents
     # Run the job worker inside the API process. Needed while storage is a local directory,
     # because a separate worker service would not see the files the API saved.
     embedded_worker: bool = False

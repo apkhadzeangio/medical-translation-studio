@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 
-from app.api import documents, glossary, health, projects, translation
+from app.api import documents, export, glossary, health, projects, translation
 from app.config import get_settings
 
 
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(title="Medical Translation Studio", version="0.1.0", lifespan=lifespan)
     app.include_router(health.router)
-    for router in (projects.router, documents.router, glossary.router, translation.router):
+    for router in (projects.router, documents.router, glossary.router, translation.router, export.router):
         app.include_router(router, dependencies=[Depends(require_token)])
     return app
 
