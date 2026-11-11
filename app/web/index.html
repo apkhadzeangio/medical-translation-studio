@@ -101,8 +101,15 @@ async function api(path, options) {
   const response = await fetch(path, opts);
   if (!response.ok) {
     let detail = response.statusText;
-    try { const body = await response.json(); detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail); } catch (e) { /* not JSON */ }
-    throw new Error(response.status + ": " + detail);
+    let issues = null;
+    try {
+      const body = await response.json();
+      if (body.detail && body.detail.issues) { issues = body.detail.issues; detail = body.detail.message; }
+      else detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+    } catch (e) { /* not JSON */ }
+    const error = new Error(response.status + ": " + detail);
+    error.issues = issues;
+    throw error;
   }
   return response;
 }
@@ -157,7 +164,19 @@ async function chapterRow(chapter) {
   row.appendChild(pills);
   const translate = el("button", { text: "თარგმნა" });
   translate.onclick = () => guarded(translate, async () => {
-    const plan = await postJson("/api/chapters/" + chapter.id + "/translate");
+    let plan;
+    try {
+      plan = await postJson("/api/chapters/" + chapter.id + "/translate");
+    } catch (error) {
+      // the parser reported damaged structure in this chapter: translating it is a deliberate choice
+      if (!error.issues) throw error;
+      const lines = error.issues.slice(0, 8).map((i) => "გვ. " + i.page + ": " + i.message).join("\n");
+      if (!window.confirm("ამ თავის სტრუქტურა დაზიანებულია:\n\n" + lines + "\n\nმაინც გაიგზავნოს ფასიან თარგმნაზე?")) {
+        say("თარგმნა შეჩერებულია: ჯერ გაასწორეთ პარსინგი.", "error");
+        return;
+      }
+      plan = await postJson("/api/chapters/" + chapter.id + "/translate?force=true");
+    }
     say("რიგში ჩადგა " + plan.chunks + " ნაწილი, " + plan.words + " სიტყვა. სავარაუდო ხარჯი (უხეში): $" + plan.estimated_cost_usd);
     await refresh();
   });
@@ -191,9 +210,13 @@ async function refresh() {
     const state = doc.status === "parsed" ? "ok" : (doc.status === "failed" ? "bad" : "warn");
     card.appendChild(el("div", {}, [pill(STATUS[doc.status] || doc.status, state), pill("გვერდები: " + (detail.page_count || "—")), pill("სეგმენტები: " + detail.segments)]));
     if (detail.last_error) card.appendChild(el("div", { class: "muted", text: "ბოლო შეცდომა: " + detail.last_error }));
+    const issues = (detail.parse && detail.parse.issues) || [];
+    const errors = issues.filter((i) => i.severity === "error");
+    if (errors.length) card.appendChild(el("div", {}, [pill("სტრუქტურის შეცდომა: " + errors.length + " — თარგმნა შეჩერებულია", "bad")]));
     const warnings = (detail.parse && detail.parse.warnings) || [];
-    warnings.slice(0, 3).forEach((w) => card.appendChild(el("div", { class: "muted", text: "⚠ " + w })));
-    if (warnings.length > 3) card.appendChild(el("div", { class: "muted", text: "… კიდევ " + (warnings.length - 3) + " შენიშვნა" }));
+    const shown = warnings.slice(0, 12);
+    shown.forEach((w) => card.appendChild(el("div", { class: "muted", text: "⚠ " + w })));
+    if (warnings.length > shown.length) card.appendChild(el("div", { class: "muted", text: "… კიდევ " + (warnings.length - shown.length) + " შენიშვნა" }));
     for (const chapter of detail.chapters) card.appendChild(await chapterRow(chapter));
     nodes.push(card);
   }

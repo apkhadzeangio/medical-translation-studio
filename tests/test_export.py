@@ -72,7 +72,12 @@ def test_georgian_book_layout(book):
     # callouts are single-cell tables; data tables follow
     tables = doc.tables
     callouts = [t for t in tables if len(t.columns) == 1]
-    data = [t for t in tables if len(t.columns) > 1]
+    # a figure's labels are listed under it: English | Georgian
+    legends = [t for t in tables if len(t.columns) == 2
+               and "Extraction complete?" in [row.cells[0].text for row in t.rows]]
+    assert len(legends) == 1
+    assert "ქართ Extraction complete?" in [row.cells[1].text for row in legends[0].rows]
+    data = [t for t in tables if len(t.columns) > 1 and t not in legends]
     assert len(callouts) == 3 and callouts[0].cell(0, 0).paragraphs[0].text == "ქართ KEY CONCEPTS"
     assert len(callouts[0].cell(0, 0).paragraphs) == 4
     assert [(len(t.rows), len(t.columns)) for t in data] == [(2 + 18, 8), (9, 2), (7, 2)]

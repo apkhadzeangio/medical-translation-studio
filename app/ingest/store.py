@@ -16,6 +16,7 @@ from app.storage import Storage
 BLOCK_TYPES = {"heading", "paragraph", "list_item", "list", "caption", "footnote", "reference", "table", "figure",
                "callout", "equation"}
 UNTRANSLATED = {"reference", "equation", "chapter_number"}   # kept as printed
+WORD_RE = re.compile(r"[^\W\d_]{3}")       # a figure label with a word in it is translated; "(a)", "50%" are not
 
 
 def source_hash(text: str) -> str:
@@ -77,20 +78,24 @@ def store_parsed(
         data: dict = {"parts": [{"page": p, "bbox": _bbox(b)} for p, b in chunk.parts]}
         asset_id = None
 
-        if chunk.type in ("table", "figure"):
+        formula = chunk.type == "equation" and chunk.detection == "fraction"
+        if chunk.type in ("table", "figure") or formula:
             data = {"detection": chunk.detection, "caption_block_idx": block_idx.get(chunk.caption_id)}
-            if chunk.type == "table":
+            if formula:                      # kept as an image; the parts are stored for whoever checks it
+                data |= {"formula": chunk.extra, "needs_review": True}
+            elif chunk.type == "table":
                 data |= {"rows": chunk.rows, "cols": max(len(r) for r in chunk.rows), "spans": chunk.spans,
                          "header_rows": chunk.header_rows, "label": chunk.label,
                          "continues_block_idx": block_idx.get(chunk.continues),
                          "repeated_header_rows": chunk.repeated_header_rows}
             else:
-                data |= {"labels": chunk.labels, "label": chunk.label}
+                data |= {"labels": chunk.labels, "label": chunk.label,
+                         "label_boxes": [_bbox(b) for b in chunk.label_boxes]}
             if render:
                 png, width, height = render_region(pdf[chunk.page - 1], chunk.bbox)
                 key = f"{asset_prefix(document)}/{chunk.id}.png"
                 storage.put(key, png)
-                asset = Asset(document_id=document.id, kind="figure" if chunk.type == "figure" else "table_image",
+                asset = Asset(document_id=document.id, kind="table_image" if chunk.type == "table" else "figure",
                               page_no=chunk.page, bbox=_bbox(chunk.bbox), storage_key=key, mime="image/png",
                               width=width, height=height)
                 session.add(asset)
@@ -122,7 +127,13 @@ def store_parsed(
                         session.add(Segment(block_id=block.id, chapter_id=chapter_id, idx=r * cols + c,
                                             source_text=cell, source_hash=source_hash(cell)))
                         stats["segments"] += 1
-        elif chunk.type != "figure":
+        elif chunk.type == "figure":
+            for i, label in enumerate(chunk.labels):          # segment idx = position in data["labels"]
+                if WORD_RE.search(label):
+                    session.add(Segment(block_id=block.id, chapter_id=chapter_id, idx=i, source_text=label,
+                                        source_hash=source_hash(label)))
+                    stats["segments"] += 1
+        else:
             texts = chunk.items or [chunk.text]      # lists and callouts: one segment per line
             for i, text in enumerate(texts):
                 session.add(Segment(
@@ -142,6 +153,8 @@ def store_parsed(
             "scanned_pages": [p.number for p in parsed.pages if p.scanned],
             "columns": {str(p.number): p.columns for p in parsed.pages if p.columns != 1},
             "warnings": parsed.warnings,
+            "issues": parsed.issues,
+            "blocking": sum(issue["severity"] == "error" for issue in parsed.issues),
         },
     }
     session.flush()

@@ -14,23 +14,46 @@ from app.pipeline.translate import plan_chapter
 router = APIRouter(prefix="/api", tags=["translation"])
 
 
+def structure_errors(document: Document, chapter: Chapter | None = None) -> list[dict[str, Any]]:
+    """Parse problems that mean the stored structure is damaged, for the whole document or one chapter."""
+    issues = ((document.meta or {}).get("parse") or {}).get("issues") or []
+    errors = [i for i in issues if i.get("severity") == "error"]
+    if chapter is not None and chapter.page_start and chapter.page_end:
+        errors = [i for i in errors if chapter.page_start <= i.get("page", 0) <= chapter.page_end]
+    return errors
+
+
+def _hold_back(errors: list[dict[str, Any]], force: bool) -> None:
+    """Paid translation of text whose structure is known to be wrong needs an explicit decision."""
+    if errors and not force:
+        raise HTTPException(status_code=409, detail={
+            "message": f"parsing found {len(errors)} structural problem(s); fix the parser and reparse, "
+                       "or repeat the request with force=true to translate anyway",
+            "issues": errors})
+
+
 @router.post("/chapters/{chapter_id}/translate")
-def translate_chapter(chapter_id: uuid.UUID, session: Session = Depends(get_session)) -> dict[str, Any]:
+def translate_chapter(chapter_id: uuid.UUID, force: bool = False,
+                      session: Session = Depends(get_session)) -> dict[str, Any]:
     """Queue a chapter for translation. Safe to call again: finished work is not redone."""
-    if session.get(Chapter, chapter_id) is None:
+    chapter = session.get(Chapter, chapter_id)
+    if chapter is None:
         raise HTTPException(status_code=404, detail="chapter not found")
+    _hold_back(structure_errors(session.get(Document, chapter.document_id), chapter), force)
     plan = plan_chapter(session, chapter_id)
     session.commit()
     return plan
 
 
 @router.post("/documents/{document_id}/translate")
-def translate_document(document_id: uuid.UUID, session: Session = Depends(get_session)) -> dict[str, Any]:
+def translate_document(document_id: uuid.UUID, force: bool = False,
+                       session: Session = Depends(get_session)) -> dict[str, Any]:
     document = session.get(Document, document_id)
     if document is None:
         raise HTTPException(status_code=404, detail="document not found")
     if document.status != "parsed":
         raise HTTPException(status_code=409, detail=f"document is {document.status}, not parsed yet")
+    _hold_back(structure_errors(document), force)
     plans = [plan_chapter(session, chapter_id) for chapter_id in session.scalars(
         select(Chapter.id).where(Chapter.document_id == document_id).order_by(Chapter.idx))]
     session.commit()

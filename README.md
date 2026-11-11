@@ -37,7 +37,7 @@ The earlier one-file pilot lives in `tools/spike/`.
 | DELETE | `/api/glossary/{term_id}` | remove a term |
 | POST | `/api/projects/{id}/tm/import` | CSV or TSV of translated sentence pairs |
 | GET | `/api/projects/{id}/tm` | translation-memory entry counts by origin |
-| POST | `/api/chapters/{id}/translate` | queue a chapter; returns chunks, words and a rough cost estimate |
+| POST | `/api/chapters/{id}/translate` | queue a chapter; returns chunks, words and a rough cost estimate. 409 if parsing reported damaged structure on its pages (`?force=true` to translate anyway) |
 | POST | `/api/documents/{id}/translate` | queue every chapter of a parsed document |
 | POST | `/api/chapters/{id}/review` | queue the medical review (normally automatic) |
 | POST | `/api/chapters/{id}/qa` | queue the independent QA (needs `LLM_QA_MODEL`) |
@@ -165,10 +165,32 @@ While storage is a local directory the worker must see the same disk as the API:
   group labels are recorded as spans; a table continued on the next page is linked to its
   first fragment and its repeated header rows are marked.
 - **Figures** (raster images and vector drawings) become one block; text inside the figure is
-  kept as `labels`, out of the main flow. Tables and figures are linked to their captions and
+  kept as `labels` with the place each one is printed (`label_boxes`), out of the main flow.
+  A label that contains a word is a segment and is translated; the export prints the labels
+  under the picture in both languages. Tables and figures are linked to their captions and
   notes and rendered to PNG assets (`STORAGE_DIR`) for the editor and for export.
+- **Framed panels**: a frame that holds captions in shaded bars (one page-wide frame with
+  several figures and tables, as in "at a glance" handbooks) is split at the bars. Under a bar,
+  a table is a group of shaded bands with no artwork in it; everything else drawn there is
+  that caption's figure. Labels around a drawing are never read as table cells.
+- **Fraction formulas** (a short rule with a centred line above and below, and `= X` beside
+  it) leave the text flow as one `equation` block: rendered as an image, parts stored in
+  `data.formula`, not translated, and always listed in the warnings.
+- **Lists inside a paragraph block**: a lead-in sentence, its bullets or numbered steps
+  (`7 Inflate cuff …`) and the paragraph after them are separate blocks; a list that runs on
+  in the next column or block is one list.
+- **Running feet** that change with every chapter are dropped when they carry the page number.
 - **Callouts** (shaded or framed boxes), **lists**, **equations** and the chapter numeral are
   separate block kinds. Sub- and superscripts are kept as `<sub>` / `<sup>`.
+
+**Structure check.** After parsing, `review_structure` records what the parser is unsure
+about in `documents.meta.parse.issues` (`page`, `code`, `severity`, `message`); the console
+lists them on the document card.
+
+| severity | codes | effect |
+|---|---|---|
+| `error` | `reading_order`, `table_structure`, `table_not_found`, `stray_symbols` | the structure is known to be damaged: `POST …/translate` answers 409 with the issues; `?force=true` overrides, and the console asks before it does |
+| `warning` | `formula_image`, `figure_labels`, `figure_without_caption`, `figure_not_found`, `table_without_caption`, `scanned` | translation is allowed; a person should look at the page |
 
 Inspect a parse, or score it against a ground-truth file:
 
@@ -178,9 +200,16 @@ Inspect a parse, or score it against a ground-truth file:
 `tests/fixtures/synthetic_vascular_chapter.pdf` with its ground truth is the regression
 fixture: the parser must keep scoring 100% on its six text pages.
 
+The page designs that first broke on a real handbook (footer across the gutter, fraction
+formula, framed diagram with leader labels, table beside a formula and a chart) are rebuilt as
+synthetic pages in `tests/pdf_factory.py` and pinned by `tests/test_pdf_panels.py`. No page of
+a copyrighted book belongs in this repository.
+
 Known limits: scanned pages are detected and reported but not OCR'd (out of scope); tables
-with neither rules nor shading stay as paragraphs; figure labels are not translated (the
-image is reused as is); a line-break hyphen is removed when the next line starts lowercase,
+with neither rules nor shading stay as paragraphs; a figure's image keeps its English labels
+(the Georgian ones are in the legend under it); the wording inside a fraction formula is not
+translated; two figure labels printed directly under each other at normal line spacing can
+only be told apart by a capital letter; a line-break hyphen is removed when the next line starts lowercase,
 which would also join a true compound broken exactly at its hyphen (`follow-` / `up`).
 PyMuPDF is AGPL-licensed: fine for internal use, needs a commercial licence if this is ever
 distributed as closed-source software.
