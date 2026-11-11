@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # USD per 1M tokens, per model. A model without a price (and no "default") is refused.
     llm_prices: str = '{"gpt-6-astra": {"input": 10, "cached_input": 1, "output": 50}}'
     llm_budget_usd: float | None = None  # hard cap across all projects
+    # Upper bound on output tokens (reasoning included) of one model call, sent as
+    # max_completion_tokens. Bounds what a single runaway answer can cost. Empty = provider default.
+    llm_max_output_tokens: int | None = None
     llm_max_attempts: int = 6
     llm_concurrency_per_key: int = 4
     llm_timeout_seconds: float = 600

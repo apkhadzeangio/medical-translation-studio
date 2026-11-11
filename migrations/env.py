@@ -1,7 +1,7 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import create_engine, pool
+from sqlalchemy import create_engine, pool, text
 
 from app.config import get_settings
 from app.models import Base
@@ -23,6 +23,9 @@ def run_offline() -> None:
 def run_online() -> None:
     engine = create_engine(url, poolclass=pool.NullPool)
     with engine.connect() as connection:
+        # preDeployCommand and the container start may both run this; the second one waits
+        connection.execute(text("SELECT pg_advisory_lock(727001)"))
+        connection.commit()
         context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
         with context.begin_transaction():
             context.run_migrations()

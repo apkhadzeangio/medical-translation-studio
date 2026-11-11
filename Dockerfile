@@ -18,4 +18,7 @@ COPY migrations ./migrations
 # Runs as root: a Railway volume is mounted root-owned, and the app must write uploads and
 # extracted figures to it. The container is the isolation boundary.
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Migrations also run here, not only in Railway's preDeployCommand: if that step is skipped or
+# overridden in the dashboard the app would otherwise start against an empty schema.
+# `alembic upgrade head` is a no-op when the schema is current.
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

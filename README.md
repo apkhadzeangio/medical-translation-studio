@@ -22,7 +22,8 @@ The earlier one-file pilot lives in `tools/spike/`.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/health` | liveness, no database access |
-| GET | `/health/db` | readiness: database reachable and migrated |
+| GET | `/health/db` | readiness: database reachable and migrated to the revision this code needs |
+| GET | `/health/worker` | embedded worker threads alive, queue counts, number of model keys (never the keys) |
 | POST / GET | `/api/projects` | create / list projects |
 | GET | `/api/projects/{id}` | one project |
 | POST / GET | `/api/projects/{id}/documents` | upload a PDF (queued for parsing) / list |

@@ -156,3 +156,22 @@ def test_keys_never_reach_the_ledger(migrated_db, project):
     gw.complete("translate", MSG, project_id=project)
     dump = " ".join(f"{r.key_label} {r.error} {r.provider}" for r in calls(migrated_db, project))
     assert "sk-secret" not in dump
+
+
+def test_output_cap_is_sent_and_a_truncated_answer_is_not_retried(migrated_db, project):
+    cut = httpx.Response(200, json={
+        "choices": [{"message": {"content": '{"a": '}, "finish_reason": "length"}],
+        "usage": {"prompt_tokens": 100, "completion_tokens": 50}})
+    gw, seen, _ = make(migrated_db, [cut, ok()], llm_max_output_tokens=50)
+    with pytest.raises(LLMError, match="cut off"):
+        gw.complete("translate", MSG, project_id=project)
+    assert len(seen) == 1                                       # not sent again: it would be billed again
+    assert json.loads(seen[0].content)["max_completion_tokens"] == 50
+    rows = calls(migrated_db, project)
+    assert len(rows) == 1 and not rows[0].ok and rows[0].cost_usd > 0
+
+
+def test_no_output_cap_by_default(migrated_db, project):
+    gw, seen, _ = make(migrated_db, [ok()])
+    gw.complete("translate", MSG, project_id=project)
+    assert "max_completion_tokens" not in json.loads(seen[0].content)
