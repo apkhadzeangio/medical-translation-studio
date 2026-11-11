@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     api_token: str | None = None  # if set, required as "Authorization: Bearer <token>" on /api/*
 
     storage_dir: str = "./data"  # local file storage for source files and extracted assets
+    max_upload_mb: int = 500
+    # Run the job worker inside the API process. Needed while storage is a local directory,
+    # because a separate worker service would not see the files the API saved.
+    embedded_worker: bool = False
 
     # LLM gateway. Any OpenAI-compatible endpoint; several keys are used round-robin.
     llm_base_url: str = "https://api.openai.com/v1"

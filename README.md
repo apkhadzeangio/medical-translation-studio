@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-4c — parser tuned on a ground-truth chapter.** Foundation, LLM gateway, and a universal PDF parser.
+Status: **PR-6 — job queue and worker.** Upload a PDF, it is parsed in the background and survives a worker crash.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
@@ -25,6 +25,11 @@ The earlier one-file pilot lives in `tools/spike/`.
 | GET | `/health/db` | readiness: database reachable and migrated |
 | POST / GET | `/api/projects` | create / list projects |
 | GET | `/api/projects/{id}` | one project |
+| POST / GET | `/api/projects/{id}/documents` | upload a PDF (queued for parsing) / list |
+| GET | `/api/documents/{id}` | status, chapters, block and segment counts, parse report |
+| POST | `/api/documents/{id}/reparse` | parse again, replacing the previous result |
+| GET | `/api/projects/{id}/jobs` | job counts by kind and status |
+| POST | `/api/projects/{id}/jobs/retry-failed` | requeue failed jobs |
 
 `/api/*` requires `Authorization: Bearer $API_TOKEN` when `API_TOKEN` is set.
 
@@ -41,6 +46,22 @@ The earlier one-file pilot lives in `tools/spike/`.
 | `glossary_terms`, `tm_entries` | terminology and translation memory |
 | `jobs` | Postgres work queue with idempotency keys |
 | `llm_calls` | token and cost ledger per request |
+
+## Background jobs
+
+`app/jobs.py` is a Postgres queue (`FOR UPDATE SKIP LOCKED`), `app/worker.py` runs it:
+
+    python -m app.worker
+
+- enqueueing is idempotent on the job key, so planning twice never duplicates work
+- each job runs in one transaction; a failure rolls back and retries with backoff (5 attempts)
+- a job left running by a dead worker is requeued after 30 minutes
+- a job that hits the budget cap is paused for an hour without spending an attempt
+- `app/chunking.py` groups a chapter's segments into translation chunks without splitting a
+  table, list or callout, and without leaving a heading at the end of a chunk
+
+While storage is a local directory the worker must see the same disk as the API: set
+`EMBEDDED_WORKER=true` to run it inside the API process (single Railway service with a volume).
 
 ## PDF ingestion
 
