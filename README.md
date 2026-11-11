@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-3 — LLM gateway.** Foundation (API, schema, migrations, CI) plus the provider gateway.
+Status: **PR-4a — PDF ingestion (text).** Foundation, LLM gateway, and a universal PDF parser.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
@@ -41,6 +41,30 @@ The earlier one-file pilot lives in `tools/spike/`.
 | `glossary_terms`, `tm_entries` | terminology and translation memory |
 | `jobs` | Postgres work queue with idempotency keys |
 | `llm_calls` | token and cost ledger per request |
+
+## PDF ingestion
+
+`app/ingest/` turns a text PDF into typed blocks in reading order.
+
+- **Text is never rewritten.** Characters come from the PDF text layer; the model only decides structure.
+- Deterministic pass: running headers/footers and page numbers removed, 1..n columns and
+  full-width blocks ordered, headings / captions / footnotes / references / list items
+  classified, paragraphs joined across column and page breaks, chapters from the PDF outline
+  or `CHAPTER n` headings.
+- Optional model pass on complex pages only (images, captions, 3+ columns): the model gets the
+  page image and chunk ids and returns order, types and page furniture. The answer is used only
+  if every id appears exactly once; otherwise the deterministic result stands.
+- Superscripts are kept as `<sup>12</sup>` so citation markers do not fuse with words.
+
+Inspect a parse without the database:
+
+    python -m app.ingest.cli book.pdf --pages 40-45 --text
+
+Known limits: tables and figure extraction arrive in PR-4b; scanned pages are detected and
+reported but not OCR'd; a line-break hyphen is removed when the next line starts lowercase,
+which also joins true compounds broken at the hyphen (`follow-` / `up` → `followup`).
+PyMuPDF is AGPL-licensed: fine for internal use, needs a commercial licence if this is ever
+distributed as closed-source software.
 
 ## LLM gateway
 
