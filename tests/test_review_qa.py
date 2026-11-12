@@ -64,9 +64,9 @@ def setup(migrated_db, monkeypatch):
         chapter_id = s.scalars(select(Chapter.id).where(Chapter.document_id == doc.id)).first()
         project_id = project.id
 
-    def start(provider: FakeProvider, qa_model: str | None = "other-vendor-qa"):
+    def start(provider: FakeProvider, qa_model: str | None = "other-vendor-qa", refine_model: str | None = None):
         settings = Settings(llm_api_keys="sk-test", llm_base_url="https://llm.test/v1", llm_max_attempts=1,
-                            llm_prices=PRICES, llm_qa_model=qa_model)
+                            llm_prices=PRICES, llm_qa_model=qa_model, llm_refine_model=refine_model)
         gw = LLMGateway(migrated_db, settings, transport=httpx.MockTransport(provider), sleep=lambda s: None)
         monkeypatch.setattr(translate, "get_gateway", lambda session: gw)
         monkeypatch.setattr(review, "get_settings", lambda: settings)

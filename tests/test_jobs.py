@@ -204,7 +204,7 @@ def test_worker_loop_survives_a_broken_queue(clean_jobs, monkeypatch):
             s.commit()
         state["fail"] = False                                   # the database is back
         deadline = time.monotonic() + 10
-        while not ran and time.monotonic() < deadline:
+        while (not ran or worker.last_loop_error is not None) and time.monotonic() < deadline:
             time.sleep(0.02)
         assert ran == [job_id] and worker.last_loop_error is None
     finally:

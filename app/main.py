@@ -6,8 +6,9 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
-from app.api import documents, export, glossary, health, projects, translation
+from app.api import documents, editor, export, glossary, health, processing, projects, translation
 from app.config import get_settings
 
 
@@ -50,6 +51,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Medical Translation Studio", version="0.1.0", lifespan=lifespan)
+    app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web"), name="static")
     app.include_router(health.router)
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -57,7 +59,8 @@ def create_app() -> FastAPI:
         """The operator console: one static page that talks to /api with the access token."""
         return (Path(__file__).parent / "web" / "index.html").read_text(encoding="utf-8")
 
-    for router in (projects.router, documents.router, glossary.router, translation.router, export.router):
+    for router in (projects.router, documents.router, glossary.router, translation.router,
+                   editor.router, processing.router, export.router):
         app.include_router(router, dependencies=[Depends(require_token)])
     return app
 

@@ -27,7 +27,7 @@ build-backend = "setuptools.build_meta"
 include = ["app*"]
 
 [tool.setuptools.package-data]
-app = ["web/*.html"]
+app = ["web/*.html", "web/*.js"]
 
 [tool.ruff]
 line-length = 120

@@ -144,6 +144,7 @@ class LLMGateway:
         json_mode: bool = True,
         project_id: uuid.UUID | None = None,
         job_id: int | None = None,
+        prompt_version: str | None = None,
         extra: dict[str, Any] | None = None,
     ) -> LLMResult:
         model = model or self.settings.llm_model
@@ -163,7 +164,7 @@ class LLMGateway:
             if self.settings.llm_max_output_tokens and "max_completion_tokens" not in body:
                 body["max_completion_tokens"] = self.settings.llm_max_output_tokens
             log = {"project_id": project_id, "job_id": job_id, "stage": stage, "model": model,
-                   "key_label": key.label}
+                   "key_label": key.label, "prompt_version": prompt_version}
             started = self.clock()
             try:
                 with key.sem:
@@ -185,7 +186,7 @@ class LLMGateway:
                 if problem == TRUNCATED:      # the same request would be cut off, and billed, again
                     raise LLMError(f"{stage}: {problem}")
                 continue
-            last_error = f"http {status}: {self._error_message(resp)}"
+            last_error = f"http {status}: {self._redact(self._error_message(resp))}"
             self._log(**log, ok=False, error=last_error, started=started)
             if status in (401, 403):
                 self.pool.disable(key)
@@ -207,6 +208,11 @@ class LLMGateway:
             return Decimal(s.execute(q).scalar_one())
 
     # ------------------------------------------------------------------ internals
+
+    def _redact(self, message: str) -> str:
+        for secret in self.settings.llm_key_list:
+            message = message.replace(secret, "[redacted]")
+        return re.sub(r"sk-[A-Za-z0-9_-]+", "[redacted]", message)
 
     def _read_success(self, resp, model, price, json_mode, log, started):
         try:

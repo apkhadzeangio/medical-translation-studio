@@ -30,6 +30,16 @@
   main { padding-bottom:80px; }
   #message.error { display:block; background:#fde9e7; color:var(--bad); } #message.info { display:block; background:#e8effb; color:var(--accent); }
   table { width:100%; border-collapse:collapse; font-size:13px; } td, th { text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); }
+  textarea { width:100%; min-height:120px; padding:10px; font:inherit; border:1px solid var(--line); border-radius:8px; resize:vertical; }
+  .segment-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .segment-grid pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; margin:0; }
+  .segment-card { border-top:1px solid var(--line); padding:14px 0; }
+  .segment-card.flagged { border-left:3px solid var(--bad); padding-left:10px; }
+  .segment-card details pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; }
+  .save-state { min-height:1.5em; }
+  #editor { scroll-margin-top:12px; }
+  @media (min-width:1000px) { main:has(#editor:not([hidden])) { max-width:1200px; } }
+  @media (max-width:650px) { .segment-grid { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -39,7 +49,7 @@
 
   <section>
     <h2>წვდომა</h2>
-    <label for="token">წვდომის კოდი (API_TOKEN)</label>
+    <label for="token">წვდომის კოდი</label>
     <div class="row">
       <div><input id="token" type="password" autocomplete="off"></div>
       <button id="saveToken">შესვლა</button>
@@ -63,11 +73,21 @@
     <h2>ხარჯი და სამუშაოები</h2>
     <div id="cost" class="muted">—</div>
     <div id="jobs" class="muted"></div>
+    <details><summary>სამუშაოების დეტალები და შეცდომები</summary><div id="jobDetails"></div></details>
+    <div id="processing" class="muted"></div>
+    <div id="pipeline" class="muted"></div>
+    <button id="pause" class="ghost">შეჩერება</button>
+    <button id="resume" class="ghost">გაგრძელება</button>
+    <button id="cancel" class="ghost">რიგის გაუქმება</button>
     <button id="retry" class="ghost">წარუმატებელი სამუშაოების ხელახლა გაშვება</button>
+    <div class="row">
+      <div><label for="projectBudget">პროექტის ბიუჯეტი, USD</label><input id="projectBudget" type="number" min="0" step="0.01"></div>
+      <button id="updateBudget" class="ghost">ბიუჯეტის განახლება</button>
+    </div>
 
     <h2 style="margin-top:18px">დოკუმენტები</h2>
     <div class="row">
-      <div><label for="file">PDF ფაილი</label><input id="file" type="file" accept="application/pdf"></div>
+      <div><label for="file">PDF ან DOCX ფაილი</label><input id="file" type="file" accept="application/pdf,.docx"></div>
       <button id="upload">ატვირთვა</button>
     </div>
     <div id="documents"></div>
@@ -77,6 +97,30 @@
       <div><label for="glossary">CSV: ინგლისური ტერმინი, ქართული ტერმინი</label><input id="glossary" type="file" accept=".csv,.tsv,text/csv"></div>
       <button id="importGlossary" class="ghost">იმპორტი</button>
     </div>
+    <div class="row">
+      <div><label for="termEnglish">ინგლისური ტერმინი</label><input id="termEnglish"></div>
+      <div><label for="termGeorgian">ქართული ტერმინი</label><input id="termGeorgian"></div>
+      <button id="saveTerm" class="ghost">ტერმინის შენახვა</button>
+    </div>
+    <label for="termSearch">ტერმინის ძიება</label><input id="termSearch" type="search">
+    <div id="termResults"></div>
+    <button id="exportGlossary" class="ghost">ლექსიკონის ჩამოტვირთვა</button>
+    <h3>თარგმანის მეხსიერება</h3>
+    <div class="row">
+      <div><label for="tmFile">CSV / TSV: ინგლისური ტექსტი, ქართული თარგმანი</label><input id="tmFile" type="file" accept=".csv,.tsv"></div>
+      <button id="importTM" class="ghost">ნათარგმნი წყვილების იმპორტი</button>
+    </div>
+  </section>
+  <section id="editor" hidden>
+    <h2 id="editorTitle">ორენოვანი რედაქტორი</h2>
+    <p class="muted">ტექსტის ცვლილება ავტომატურად ინახება. დამტკიცება ცალკე მოქმედებაა. რიცხვები და მითითებები წყაროს შეადარეთ.</p>
+    <label><input id="flaggedOnly" type="checkbox" style="width:auto"> მხოლოდ მონიშნული სეგმენტები</label>
+    <div id="editorQuality" class="muted"></div>
+    <div id="editorSegments"></div>
+    <button id="editorPrevious" class="ghost">წინა</button>
+    <span id="editorPage" class="muted"></span>
+    <button id="editorNext" class="ghost">შემდეგი</button>
+    <button id="closeEditor" class="ghost">დახურვა</button>
   </section>
 </main>
 
@@ -84,7 +128,9 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 const STATUS = { uploaded:"ატვირთულია", parsing:"მუშავდება", parsed:"დამუშავებულია", failed:"შეცდომა",
-  pending:"მოლოდინში", translating:"ითარგმნება", reviewing:"რევიზია", qa:"QA / ელოდება გადაწყვეტას", done:"დასრულებულია" };
+  pending:"მოლოდინში", translating:"ითარგმნება", reviewing:"რევიზია", refining:"ქართული რაფინირება",
+  reviewed:"შემოწმებულია", approved:"დამტკიცებულია", translated:"ნათარგმნია", flagged:"გადასამოწმებელია",
+  qa:"QA / ელოდება გადაწყვეტას", done:"დასრულებულია" };
 let token = "";
 try { token = localStorage.getItem("mts_token") || ""; } catch (e) { token = ""; }
 let timer = null;
@@ -181,11 +227,22 @@ async function chapterRow(chapter) {
     await refresh();
   });
   row.appendChild(translate);
-  [["ქართული DOCX", "docx", "ka"], ["ქართული PDF", "pdf", "ka"], ["ორენოვანი DOCX", "docx", "bilingual"]].forEach(([label, format, mode]) => {
+  const edit = el("button", { class:"ghost", text:"ორენოვანი რედაქტორი" });
+  edit.onclick = () => guarded(edit, () => openEditor(chapter.id));
+  row.appendChild(edit);
+  [["სამუშაო DOCX", "docx", "ka"], ["სამუშაო PDF", "pdf", "ka"], ["ორენოვანი DOCX", "docx", "bilingual"]].forEach(([label, format, mode]) => {
     const button = el("button", { class: "ghost", text: label });
     button.onclick = () => guarded(button, () => download("/api/chapters/" + chapter.id + "/export?format=" + format + "&mode=" + mode, "export." + format));
     row.appendChild(button);
   });
+  for (const format of ["docx", "pdf"]) {
+    const button = el("button", { class:"ghost", text:"საბოლოო " + format.toUpperCase() });
+    button.onclick = () => guarded(button, () => download("/api/chapters/" + chapter.id + "/export?final=true&format=" + format, "final." + format));
+    row.appendChild(button);
+  }
+  const quality = el("button", { class:"ghost", text:"QA ანგარიში" });
+  quality.onclick = () => guarded(quality, () => download("/api/chapters/" + chapter.id + "/quality", "quality.json"));
+  row.appendChild(quality);
   return row;
 }
 
@@ -203,6 +260,7 @@ async function refresh() {
   $("jobs").textContent = Object.entries(jobs).map(([kind, counts]) => kind + ": " + Object.entries(counts).map(([status, n]) => status + " " + n).join(", ")).join(" · ") || "სამუშაოები არ არის";
 
   const list = $("documents");
+  if (typeof refreshControls === "function") await refreshControls();
   const nodes = [];
   for (const doc of documents) {
     const detail = await getJson("/api/documents/" + doc.id);
@@ -240,7 +298,7 @@ $("createProject").onclick = () => guarded($("createProject"), async () => {
 });
 $("upload").onclick = () => guarded($("upload"), async () => {
   const file = $("file").files[0];
-  if (!file) throw new Error("აირჩიეთ PDF ფაილი");
+  if (!file) throw new Error("აირჩიეთ PDF ან DOCX ფაილი");
   const form = new FormData();
   form.append("file", file);
   await api("/api/projects/" + $("project").value + "/documents", { method: "POST", body: form });
@@ -267,5 +325,6 @@ $("token").value = token;
 if (token) guarded(null, loadProjects);
 timer = setInterval(() => { if (!$("work").hidden && !document.hidden) refresh().catch(() => {}); }, 8000);
 </script>
+<script src="/static/editor.js"></script>
 </body>
 </html>

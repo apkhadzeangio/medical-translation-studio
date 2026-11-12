@@ -120,6 +120,16 @@ def test_other_client_errors_fail_fast(migrated_db, project):
     assert len(seen) == 1
 
 
+def test_provider_cannot_echo_a_secret_into_errors_or_the_cost_ledger(migrated_db, project):
+    gw, _, _ = make(migrated_db, [httpx.Response(404, json={
+        "error": {"message": "rejected credential sk-secret-A and sk-another-secret"}})])
+    with pytest.raises(LLMError) as error:
+        gw.complete("translate", MSG, project_id=project)
+    assert "sk-secret" not in str(error.value)
+    (row,) = calls(migrated_db, project)
+    assert "sk-" not in row.error and "[redacted]" in row.error
+
+
 def test_gives_up_after_max_attempts(migrated_db, project):
     gw, seen, _ = make(migrated_db, [httpx.Response(500)] * 3, llm_max_attempts=3)
     with pytest.raises(LLMError, match="gave up"):

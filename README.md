@@ -7,6 +7,36 @@ memory, cost control, bilingual DOCX/PDF export.
 Status: **live on Railway.** First real run (2026-11-12, gpt-6-astra): a 1,879-word chapter translated and reviewed in about 2 minutes for $0.65, i.e. about $0.35 per 1,000 source words without the QA stage.
 The earlier one-file pilot lives in `tools/spike/`.
 
+## Review workspace
+
+Open a chapter's **ორენოვანი რედაქტორი** to edit the Georgian translation beside its source.
+Changes autosave as human revisions; **თარგმანის დამტკიცება** is a separate action and adds
+the approved pair to translation memory. The editor keeps your draft when another operator
+has changed the version. Old QA is invalidated on edits and a configured auditor is requeued.
+Critical findings require a correction or an explicit, recorded human explanation before approval.
+
+**სამუშაო DOCX/PDF** exports remain available for review. **საბოლოო DOCX/PDF** requires every
+translatable segment to be approved and every critical finding to be resolved. Download the
+QA report for counts and source-linked findings. Readiness and final-file generation share
+segment locks so a concurrent edit cannot slip into an approved export.
+
+Project controls pause, resume or cancel queued processing without deleting translations.
+Requests already in flight finish. Resume restores work cancelled by the operator and releases
+budget-paused jobs, while preserving ordinary retry backoff. Job details display recent failures.
+The console also supports editing the budget, searching/editing glossary terms, and TM imports.
+
+`LLM_REFINE_MODEL` enables the separate Georgian academic-editing stage:
+
+`translate → medical review → academic refinement → QA`
+
+It is unset by default for compatibility with existing deployments. `LLM_QA_MODEL` is still
+required for model QA. The console explicitly identifies either unconfigured stage. Prompt
+versions are recorded in the model-call ledger. Synthetic-provider tests exercise all four
+stages; they do not establish the quality or availability of a live provider.
+
+See [completion status](docs/COMPLETION_STATUS.md) for outstanding plan items and
+[the n8n connection guide](docs/N8N_CONNECTION.md) for connecting an AI coding client.
+
 ## Local development
 
     docker compose up -d db
@@ -43,11 +73,36 @@ The earlier one-file pilot lives in `tools/spike/`.
 | POST | `/api/chapters/{id}/qa` | queue the independent QA (needs `LLM_QA_MODEL`) |
 | GET | `/api/chapters/{id}/segments` | source and translation side by side with open QA flags |
 | GET | `/api/segments/{id}/versions` | every stage's text and every QA finding for one segment |
+| PUT | `/api/segments/{id}/translation` | version-checked human edit (`text`, `expected_version_id`, optional `note`) |
+| POST | `/api/segments/{id}/approve` | human approval (`expected_version_id`) |
+| POST | `/api/qa-flags/{id}/resolve` | recorded QA decision (`expected_version_id`, `note`) |
+| POST | `/api/chapters/{id}/refine` | queue academic Georgian editing (`LLM_REFINE_MODEL`) |
+| GET | `/api/chapters/{id}/quality` | source-linked publication-readiness report |
+| GET | `/api/documents/{id}/quality` | whole-document readiness report |
+| POST | `/api/projects/{id}/processing/{pause\|resume\|cancel}` | control job claims; in-flight work finishes |
+| GET | `/api/projects/{id}/jobs/details` | latest 100 jobs, attempts and errors |
+| PATCH | `/api/projects/{id}` | change name or budget |
+| GET | `/api/runtime` | configured models/provider and key count; no secrets |
 | GET | `/api/projects/{id}/cost` | budget, amount spent, tokens and cost per stage |
 | GET | `/api/chapters/{id}/export?format=docx\|pdf&mode=ka\|bilingual` | one chapter as a file |
 | GET | `/api/documents/{id}/export?format=…&mode=…` | all chapters in one file |
 
 `/api/*` requires `Authorization: Bearer $API_TOKEN` when `API_TOKEN` is set.
+Add `final=true` to either export endpoint to enforce the approval gate. Without it,
+exports are drafts and can contain unapproved or untranslated source material.
+
+## DOCX ingestion
+
+The upload endpoint accepts DOCX as well as PDF. DOCX ingestion preserves body order,
+heading levels, lists, editable tables with merged cells, embedded raster images,
+hyperlink wording and superscript/subscript runs. Original files are kept. Word documents
+have no stable page numbers before pagination, so the importer does not invent them.
+
+Footnotes/endnotes, equations, text boxes, nested tables and pictures inside table cells
+currently require source review and are reported as blocking structural issues. Figure
+labels remain in the source language and are reported as warnings. Expanded DOCX packages
+are limited to 256 MB and 10,000 entries. This is a supported subset, not lossless handling
+of every Word feature. A reparse of a document with translations now requires `force=true`.
 
 ## Schema
 

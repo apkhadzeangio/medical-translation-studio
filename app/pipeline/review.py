@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app import jobs
 from app.chunking import plan_chunks
 from app.config import get_settings
-from app.llm.gateway import LLMGateway
+from app.llm.gateway import LLMError, LLMGateway
 from app.models import Block, Chapter, Document, Job, Project, QAFlag, Segment, SegmentVersion
 from app.pipeline import translate
 from app.pipeline.checks import check_segment
@@ -60,6 +60,15 @@ Return ONLY JSON:
 terminology|grammar", "severity": "critical|major|minor", "comment": "<one short sentence in Georgian>"}]}
 critical = could mislead clinical understanding. Return {"findings": []} if the segments are sound."""
 
+REFINE_SYSTEM = """You are an academic editor of Georgian medical literature. Improve the Georgian
+wording only where clarity, grammar or academic register requires it. You receive the English
+source, reviewed Georgian text, mandatory glossary and existing issues. Never summarize or add
+clinical content. Preserve negation, laterality, qualifiers, every number, unit, symbol and
+<sup>/<sub> citation markup. Do not change a correct segment for a stylistic preference.
+Return ONLY JSON: {"edits": [{"id": "...", "ka": "<full corrected segment>",
+"reason": "<short Georgian explanation>"}]}. Return {"edits": []} when no change is needed.
+Prompt version: academic-refine-v1."""
+
 
 @lru_cache
 def _qa_gateway(engine: Engine) -> LLMGateway:
@@ -94,8 +103,19 @@ def _plan(session: Session, chapter_id: uuid.UUID, kind: str) -> dict[str, Any]:
     document = session.get(Document, chapter.document_id)
     chunks = plan_chunks(session, chapter_id, get_settings().translate_chunk_words)
     queued = 0
+    done_column = {"review": Segment.review_done, "refine": Segment.refine_done, "qa": Segment.qa_done}[kind]
     for index, chunk in enumerate(chunks):
-        digest = hashlib.sha256("".join(map(str, chunk.segment_ids)).encode()).hexdigest()[:16]
+        pending = session.scalar(select(Segment.id).where(
+            Segment.id.in_(chunk.segment_ids), ~done_column, Segment.status != "approved").limit(1))
+        if pending is None:
+            continue
+        versions = session.execute(select(SegmentVersion.segment_id, SegmentVersion.id).where(
+            SegmentVersion.segment_id.in_(chunk.segment_ids), SegmentVersion.is_current)
+            .order_by(SegmentVersion.segment_id)).all()
+        # A human revision invalidates old QA. Re-plan the changed snapshot, while repeating
+        # an unchanged plan still reuses the same job (and incurs no model call).
+        snapshot = "".join(map(str, chunk.segment_ids)) + ":" + str(versions)
+        digest = hashlib.sha256(snapshot.encode()).hexdigest()[:16]
         job = jobs.enqueue(
             session, f"{kind}_chunk", f"{kind}:{chapter_id}:{digest}",
             {"chapter_id": str(chapter_id), "segment_ids": [str(i) for i in chunk.segment_ids]},
@@ -112,9 +132,17 @@ def plan_qa(session: Session, chapter_id: uuid.UUID) -> dict[str, Any]:
     return {**_plan(session, chapter_id, "qa"), "independent": qa_is_independent()}
 
 
+def plan_refine(session: Session, chapter_id: uuid.UUID) -> dict[str, Any]:
+    return _plan(session, chapter_id, "refine")
+
+
 def _load(session: Session, job: Job, done_column) -> list[tuple[Segment, str, SegmentVersion]]:
     """Segments of this chunk that still need this stage, with their current translation."""
     ids = [uuid.UUID(i) for i in job.payload["segment_ids"]]
+    # Lock before reading versions, in the same order as the translator. A join in
+    # the locking statement could retain the old version's snapshot after waiting
+    # for a human edit to commit under Postgres READ COMMITTED.
+    list(session.scalars(select(Segment.id).where(Segment.id.in_(ids)).order_by(Segment.id).with_for_update()))
     return list(session.execute(
         select(Segment, Block.type, SegmentVersion)
         .join(Block, Block.id == Segment.block_id)
@@ -140,19 +168,19 @@ def _settle(session: Session, segment: Segment, clean_status: str) -> None:
 
 
 def _apply_edit(session: Session, segment: Segment, current: SegmentVersion, text: str, reason: str,
-                glossary: GlossaryIndex, *, model: str, call_id: int) -> bool:
+                glossary: GlossaryIndex, *, model: str, call_id: int, stage: str = "review") -> bool:
     """Replace the current translation with the reviewer's, unless that would damage it."""
     before = {f.check for f in check_segment(segment.source_text, current.text) if f.severity == "critical"}
     findings = check_segment(segment.source_text, text, glossary)
     broken = {f.check for f in findings if f.severity == "critical"} - before
     if broken:
         session.add(QAFlag(
-            segment_id=segment.id, version_id=current.id, check_name="review_rejected", severity="minor",
+            segment_id=segment.id, version_id=current.id, check_name=f"{stage}_rejected", severity="minor",
             message=f"რევიზიის შესწორება უარყოფილია ({', '.join(sorted(broken))}): {reason}"[:1000]))
         return False
     current.is_current = False
     session.flush()
-    version = SegmentVersion(segment_id=segment.id, stage="review", text=text, is_current=True, model=model,
+    version = SegmentVersion(segment_id=segment.id, stage=stage, text=text, is_current=True, model=model,
                              llm_call_id=call_id, note=reason[:1000])
     session.add(version)
     session.flush()
@@ -162,7 +190,24 @@ def _apply_edit(session: Session, segment: Segment, current: SegmentVersion, tex
     for f in findings:
         session.add(QAFlag(segment_id=segment.id, version_id=version.id, check_name=f.check,
                            severity=f.severity, message=f.message))
+    # Every text change invalidates QA of the previous snapshot.
+    segment.qa_done = False
+    session.execute(update(QAFlag).where(
+        QAFlag.segment_id == segment.id, ~QAFlag.resolved, QAFlag.check_name.like("qa:%")
+    ).values(resolved=True, resolution_note="superseded by a machine revision; QA invalidated"))
     return True
+
+
+def _edits(data: Any) -> list:
+    # A malformed reviewer/auditor response is never evidence that a stage passed.
+    if not isinstance(data, dict) or not isinstance(data.get("edits"), list):
+        raise LLMError("editor response must contain an edits array")
+    if any(not isinstance(edit, dict) or not isinstance(edit.get("ka"), str)
+           or not edit["ka"].strip() or not isinstance(edit.get("id"), str) for edit in data["edits"]):
+        raise LLMError("editor returned an invalid correction")
+    if len({edit["id"] for edit in data["edits"]}) != len(data["edits"]):
+        raise LLMError("editor returned duplicate segment ids")
+    return data["edits"]
 
 
 def review_chunk(session: Session, job: Job) -> None:
@@ -183,9 +228,9 @@ def review_chunk(session: Session, job: Job) -> None:
             "review",
             [{"role": "system", "content": REVIEW_SYSTEM},
              {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
-            model=settings.llm_review_model or settings.llm_model, project_id=job.project_id, job_id=job.id)
-        edits = result.data.get("edits") if isinstance(result.data, dict) else None
-        for edit in edits if isinstance(edits, list) else []:
+            model=settings.llm_review_model or settings.llm_model, project_id=job.project_id, job_id=job.id,
+            prompt_version="medical-review-v1")
+        for edit in _edits(result.data):
             row = local.get(edit.get("id")) if isinstance(edit, dict) else None
             text = edit.get("ka") if row else None
             if not isinstance(text, str) or not text.strip() or text.strip() == row[2].text:
@@ -206,6 +251,41 @@ def review_chunk(session: Session, job: Job) -> None:
     translate.enqueue_advance(session, job)
 
 
+def refine_chunk(session: Session, job: Job) -> None:
+    rows = _load(session, job, Segment.refine_done)
+    if rows:
+        glossary = load_index(session, job.project_id)
+        local = {f"s{n}": row for n, row in enumerate(rows, start=1)}
+        payload = {
+            "glossary": [{"en": t.source, "ka": t.target}
+                         for t in glossary.find(" ".join(seg.source_text for seg, _, _ in rows))],
+            "segments": [{"id": sid, "kind": translate.KIND.get(kind, kind),
+                          "en": seg.source_text, "ka": version.text}
+                         for sid, (seg, kind, version) in local.items()]}
+        result = translate.get_gateway(session).complete(
+            "refine", [{"role": "system", "content": REFINE_SYSTEM},
+                       {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
+            model=get_settings().llm_refine_model, project_id=job.project_id, job_id=job.id,
+            prompt_version="academic-refine-v1")
+        for edit in _edits(result.data):
+            row = local.get(edit["id"])
+            if row is None:
+                raise LLMError("refinement returned an unknown segment id")
+            seg, _, version = row
+            if edit["ka"].strip() != version.text:
+                _apply_edit(session, seg, version, edit["ka"].strip(), str(edit.get("reason") or ""), glossary,
+                            model=result.model, call_id=result.call_id, stage="refine")
+        for seg, _, _ in rows:
+            seg.refine_done = True
+            session.flush()
+            _settle(session, seg, "reviewed")
+            if seg.status == "reviewed":
+                text = session.scalar(select(SegmentVersion.text).where(
+                    SegmentVersion.segment_id == seg.id, SegmentVersion.is_current))
+                tm_add(session, job.project_id, seg.source_text, text, "pipeline")
+    translate.enqueue_advance(session, job)
+
+
 # ----------------------------------------------------------------------------- QA
 
 
@@ -219,8 +299,10 @@ def qa_chunk(session: Session, job: Job) -> None:
             "qa",
             [{"role": "system", "content": QA_SYSTEM},
              {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
-            model=qa_model(), project_id=job.project_id, job_id=job.id)
-        findings = result.data.get("findings") if isinstance(result.data, dict) else None
+            model=qa_model(), project_id=job.project_id, job_id=job.id, prompt_version="independent-qa-v1")
+        if not isinstance(result.data, dict) or not isinstance(result.data.get("findings"), list):
+            raise LLMError("QA response must contain a findings array")
+        findings = result.data["findings"]
         for finding in findings if isinstance(findings, list) else []:
             row = local.get(finding.get("id")) if isinstance(finding, dict) else None
             comment = str(finding.get("comment") or "").strip() if row else ""
@@ -243,7 +325,8 @@ def qa_chunk(session: Session, job: Job) -> None:
 
 def advance_chapter(session: Session, job: Job) -> None:
     """Move the chapter forward if its current stage is complete. Runs after every chunk job."""
-    chapter = session.get(Chapter, uuid.UUID(job.payload["chapter_id"]))
+    chapter = session.scalar(select(Chapter).where(
+        Chapter.id == uuid.UUID(job.payload["chapter_id"])).with_for_update())
     if chapter is None:
         return
     project = session.get(Project, job.project_id)
@@ -258,7 +341,15 @@ def advance_chapter(session: Session, job: Job) -> None:
         if options.get("auto_review", True):
             plan_review(session, chapter.id)
     if chapter.status == "reviewing" and remaining(~Segment.review_done & (Segment.status != "approved")) == 0:
+        if get_settings().llm_refine_model:
+            chapter.status = "refining"
+            if options.get("auto_refine", True):
+                plan_refine(session, chapter.id)
+        else:
+            chapter.status = "qa"
+    if chapter.status == "refining" and remaining(~Segment.refine_done & (Segment.status != "approved")) == 0:
         chapter.status = "qa"
+    if chapter.status == "qa":
         if qa_model() and options.get("auto_qa", True):
             plan_qa(session, chapter.id)
         else:                                   # no QA model configured: deterministic checks only
