@@ -7,19 +7,19 @@ def test_liveness(client):
 def test_readiness_reports_revision(client):
     r = client.get("/health/db")
     assert r.status_code == 200
-    assert r.json()["revision"] == "0004"
+    assert r.json()["revision"] == "0005"
 
 
 def test_readiness_fails_when_schema_is_behind_the_code(client, monkeypatch):
     from app.api import health
     monkeypatch.setattr(health, "expected_revision", lambda: "9999")
     r = client.get("/health/db")
-    assert r.status_code == 503 and "0004" in r.json()["detail"] and "9999" in r.json()["detail"]
+    assert r.status_code == 503 and "0005" in r.json()["detail"] and "9999" in r.json()["detail"]
 
 
 def test_expected_revision_is_read_from_the_migration_scripts():
     from app.api.health import expected_revision
-    assert expected_revision() == "0004"
+    assert expected_revision() == "0005"
 
 
 def test_worker_health_without_embedded_worker(client):

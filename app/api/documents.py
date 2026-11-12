@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from app import jobs
 from app.config import get_settings
 from app.db import get_session
-from app.models import Block, Chapter, Document, Project, Segment
+from app.ingest.docx import validate as validate_docx
+from app.models import Block, Chapter, Document, Project, Segment, SegmentVersion
 from app.storage import Storage, get_storage
 
 router = APIRouter(prefix="/api", tags=["documents"])
@@ -56,8 +57,15 @@ def upload_document(project_id: uuid.UUID, file: UploadFile = File(...), session
     data = file.file.read(limit + 1)
     if len(data) > limit:
         raise HTTPException(status_code=413, detail=f"file larger than {get_settings().max_upload_mb} MB")
+    format = "pdf"
     if not data.startswith(b"%PDF-"):
-        raise HTTPException(status_code=415, detail="only PDF files are accepted")
+        if not (file.filename or "").lower().endswith(".docx"):
+            raise HTTPException(status_code=415, detail="only PDF and DOCX files are accepted")
+        try:
+            validate_docx(data)
+        except ValueError as exc:
+            raise HTTPException(status_code=415, detail=str(exc)) from exc
+        format = "docx"
 
     digest = hashlib.sha256(data).hexdigest()
     existing = session.execute(
@@ -66,8 +74,8 @@ def upload_document(project_id: uuid.UUID, file: UploadFile = File(...), session
         return existing
 
     document = Document(id=uuid.uuid4(), project_id=project_id, filename=(file.filename or "document.pdf")[:500],
-                        format="pdf", sha256=digest, storage_key="")
-    document.storage_key = f"documents/{document.id}/source.pdf"
+                        format=format, sha256=digest, storage_key="")
+    document.storage_key = f"documents/{document.id}/source.{format}"
     storage.put(document.storage_key, data)
     session.add(document)
     session.flush()
@@ -101,11 +109,16 @@ def get_document(document_id: uuid.UUID, session: Session = Depends(get_session)
 
 
 @router.post("/documents/{document_id}/reparse", response_model=DocumentOut)
-def reparse_document(document_id: uuid.UUID, session: Session = Depends(get_session)) -> Document:
+def reparse_document(document_id: uuid.UUID, force: bool = False,
+                     session: Session = Depends(get_session)) -> Document:
     """Parse again (after a parser fix). Existing blocks, segments and translations are replaced."""
     document = session.get(Document, document_id)
     if document is None:
         raise HTTPException(status_code=404, detail="document not found")
+    has_work = session.scalar(select(SegmentVersion.id).join(Segment).join(Block).where(
+        Block.document_id == document_id).limit(1))
+    if has_work and not force:
+        raise HTTPException(status_code=409, detail="document has translations; reparse with force=true replaces them")
     job = jobs.enqueue(session, "ingest_document", f"ingest:{document.id}", {"document_id": str(document.id)},
                        project_id=document.project_id, priority=10)
     if job.status in ("done", "failed", "cancelled"):
@@ -123,3 +136,13 @@ def job_summary(project_id: uuid.UUID, session: Session = Depends(get_session)) 
 @router.post("/projects/{project_id}/jobs/retry-failed")
 def retry_failed_jobs(project_id: uuid.UUID, session: Session = Depends(get_session)) -> dict[str, int]:
     return {"requeued": jobs.retry_failed(session, project_id)}
+
+
+@router.get("/projects/{project_id}/jobs/details")
+def job_details(project_id: uuid.UUID, session: Session = Depends(get_session)) -> list[dict]:
+    if session.get(Project, project_id) is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    return [{"id": job.id, "kind": job.kind, "status": job.status, "attempts": job.attempts,
+             "last_error": job.last_error, "run_after": job.run_after}
+            for job in session.scalars(select(jobs.Job).where(jobs.Job.project_id == project_id)
+                                       .order_by(jobs.Job.id.desc()).limit(100))]

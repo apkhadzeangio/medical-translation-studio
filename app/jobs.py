@@ -11,11 +11,11 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.models import Job
+from app.models import Job, Project
 
 
 def _now() -> datetime:
@@ -36,7 +36,10 @@ def enqueue(session: Session, kind: str, key: str, payload: dict[str, Any] | Non
 
 def claim(session: Session, worker: str, kinds: list[str] | None = None) -> Job | None:
     """Take the next runnable job and mark it running. Commits, so the claim is visible at once."""
-    query = (select(Job).where(Job.status == "queued", Job.run_after <= func.now())
+    allowed = select(Project.id).where(
+        func.coalesce(Project.settings["processing_state"].as_string(), "running") == "running")
+    query = (select(Job).where(Job.status == "queued", Job.run_after <= func.now(),
+                              or_(Job.project_id.is_(None), Job.project_id.in_(allowed)))
              .order_by(Job.priority, Job.run_after, Job.id).limit(1).with_for_update(skip_locked=True))
     if kinds:
         query = query.where(Job.kind.in_(kinds))

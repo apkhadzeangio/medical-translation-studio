@@ -17,6 +17,11 @@ def ingest_document(session: Session, job: Job) -> None:
     document = session.get(Document, uuid.UUID(job.payload["document_id"]))
     if document is None:
         return                                   # deleted since it was queued
+    if document.format == "docx":
+        from app.ingest.docx import ingest
+        storage = get_storage()
+        ingest(session, document, storage.get(document.storage_key), storage)
+        return
     if document.format != "pdf":
         raise ValueError(f"unsupported format {document.format!r}")
     storage = get_storage()

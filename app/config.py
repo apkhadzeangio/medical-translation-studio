@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # alone already scores 100% on the reference chapter.
     pdf_structure_model: bool = False
     llm_review_model: str | None = None   # medical review; defaults to llm_model
+    llm_refine_model: str | None = None   # optional Georgian academic editing after medical review
     # Independent QA. Use a model from a different vendor where possible; a model checking
     # its own work misses its own mistakes. Leave llm_qa_model empty to skip the model QA stage.
     llm_qa_model: str | None = None

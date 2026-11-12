@@ -82,7 +82,7 @@ def plan_chapter(session: Session, chapter_id: uuid.UUID, *, max_words: int | No
             project_id=document.project_id, priority=100 + index,
         )
         queued += job.status == "queued"
-    if chunks:
+    if queued:
         chapter.status = "translating"
     words = sum(c.words for c in chunks)
     price = get_gateway(session).prices.get(get_settings().llm_model) or {}
@@ -118,6 +118,7 @@ def _save(session: Session, segment: Segment, text: str, *, model: str, call_id:
 def translate_chunk(session: Session, job: Job) -> None:
     chapter_id = uuid.UUID(job.payload["chapter_id"])
     ids = [uuid.UUID(i) for i in job.payload["segment_ids"]]
+    list(session.scalars(select(Segment.id).where(Segment.id.in_(ids)).order_by(Segment.id).with_for_update()))
     rows = session.execute(
         select(Segment, Block.type, Block.idx).join(Block, Block.id == Segment.block_id)
         .where(Segment.id.in_(ids)).order_by(Block.idx, Segment.idx)).all()
@@ -154,6 +155,7 @@ def translate_chunk(session: Session, job: Job) -> None:
             [{"role": "system", "content": SYSTEM},
              {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
             project_id=job.project_id, job_id=job.id,
+            prompt_version="medical-translate-v1",
         )
         answer = result.data.get("segments") if isinstance(result.data, dict) else None
         got = {item.get("id"): item.get("ka") for item in answer or [] if isinstance(item, dict)}

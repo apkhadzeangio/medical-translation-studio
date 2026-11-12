@@ -1,17 +1,28 @@
 import uuid
 from decimal import Decimal
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import get_session
 from app.models import Block, Chapter, Document, LLMCall, Project, QAFlag, Segment, SegmentVersion
-from app.pipeline.review import plan_qa, plan_review, qa_model
+from app.pipeline.review import plan_qa, plan_refine, plan_review, qa_model
 from app.pipeline.translate import plan_chapter
 
 router = APIRouter(prefix="/api", tags=["translation"])
+
+
+@router.get("/runtime")
+def runtime_config() -> dict:
+    settings = get_settings()
+    return {"provider": urlparse(settings.llm_base_url).hostname, "keys_configured": len(settings.llm_key_list),
+            "models": {"translate": settings.llm_model,
+                       "review": settings.llm_review_model or settings.llm_model,
+                       "refine": settings.llm_refine_model, "qa": settings.llm_qa_model}}
 
 
 def structure_errors(document: Document, chapter: Chapter | None = None) -> list[dict[str, Any]]:
@@ -30,6 +41,19 @@ def _hold_back(errors: list[dict[str, Any]], force: bool) -> None:
             "message": f"parsing found {len(errors)} structural problem(s); fix the parser and reparse, "
                        "or repeat the request with force=true to translate anyway",
             "issues": errors})
+
+
+def _stage_ready(session: Session, chapter_id: uuid.UUID) -> Chapter:
+    chapter = session.get(Chapter, chapter_id)
+    if chapter is None:
+        raise HTTPException(status_code=404, detail="chapter not found")
+    missing = session.scalar(select(Segment.id).where(
+        Segment.chapter_id == chapter_id, Segment.translatable,
+        ~select(SegmentVersion.id).where(
+            SegmentVersion.segment_id == Segment.id, SegmentVersion.is_current).exists()).limit(1))
+    if missing:
+        raise HTTPException(status_code=409, detail="translate every segment before running an editing or QA stage")
+    return chapter
 
 
 @router.post("/chapters/{chapter_id}/translate")
@@ -64,9 +88,10 @@ def translate_document(document_id: uuid.UUID, force: bool = False,
 @router.post("/chapters/{chapter_id}/review")
 def review_chapter(chapter_id: uuid.UUID, session: Session = Depends(get_session)) -> dict[str, Any]:
     """Queue the medical review of a chapter (normally queued automatically after translation)."""
-    if session.get(Chapter, chapter_id) is None:
-        raise HTTPException(status_code=404, detail="chapter not found")
+    chapter = _stage_ready(session, chapter_id)
     plan = plan_review(session, chapter_id)
+    if plan["jobs_queued"]:
+        chapter.status = "reviewing"
     session.commit()
     return plan
 
@@ -74,11 +99,24 @@ def review_chapter(chapter_id: uuid.UUID, session: Session = Depends(get_session
 @router.post("/chapters/{chapter_id}/qa")
 def qa_chapter(chapter_id: uuid.UUID, session: Session = Depends(get_session)) -> dict[str, Any]:
     """Queue the independent QA of a chapter. Needs LLM_QA_MODEL."""
-    if session.get(Chapter, chapter_id) is None:
-        raise HTTPException(status_code=404, detail="chapter not found")
+    chapter = _stage_ready(session, chapter_id)
     if not qa_model():
         raise HTTPException(status_code=409, detail="no QA model configured (LLM_QA_MODEL)")
     plan = plan_qa(session, chapter_id)
+    if plan["jobs_queued"]:
+        chapter.status = "qa"
+    session.commit()
+    return plan
+
+
+@router.post("/chapters/{chapter_id}/refine")
+def refine_chapter(chapter_id: uuid.UUID, session: Session = Depends(get_session)) -> dict[str, Any]:
+    chapter = _stage_ready(session, chapter_id)
+    if not get_settings().llm_refine_model:
+        raise HTTPException(status_code=409, detail="no academic editor configured (LLM_REFINE_MODEL)")
+    plan = plan_refine(session, chapter_id)
+    if plan["jobs_queued"]:
+        chapter.status = "refining"
     session.commit()
     return plan
 
@@ -94,9 +132,13 @@ def segment_versions(segment_id: uuid.UUID, session: Session = Depends(get_sessi
     flags = session.scalars(select(QAFlag).where(QAFlag.segment_id == segment_id).order_by(QAFlag.created_at))
     return {
         "source": segment.source_text, "status": segment.status,
-        "versions": [{"stage": v.stage, "text": v.text, "current": v.is_current, "model": v.model, "note": v.note,
+        "versions": [{"id": str(v.id), "stage": v.stage, "text": v.text, "current": v.is_current,
+                      "model": v.model, "note": v.note, "created_by": v.created_by,
+                      "prompt_version": session.get(LLMCall, v.llm_call_id).prompt_version if v.llm_call_id else None,
                       "created_at": v.created_at.isoformat()} for v in versions],
-        "flags": [{"check": f.check_name, "severity": f.severity, "message": f.message, "resolved": f.resolved}
+        "flags": [{"id": str(f.id), "check": f.check_name, "severity": f.severity,
+                   "message": f.message, "resolved": f.resolved, "resolution_note": f.resolution_note,
+                   "resolved_by": f.resolved_by}
                   for f in flags],
     }
 
@@ -108,7 +150,7 @@ def chapter_segments(chapter_id: uuid.UUID, limit: int = 200, offset: int = 0, f
     chapter = session.get(Chapter, chapter_id)
     if chapter is None:
         raise HTTPException(status_code=404, detail="chapter not found")
-    query = (select(Segment, Block.type, Block.page_no, SegmentVersion.text, SegmentVersion.model)
+    query = (select(Segment, Block.type, Block.page_no, SegmentVersion.text, SegmentVersion.model, SegmentVersion.id)
              .join(Block, Block.id == Segment.block_id)
              .outerjoin(SegmentVersion, (SegmentVersion.segment_id == Segment.id) & SegmentVersion.is_current)
              .where(Segment.chapter_id == chapter_id))
@@ -120,17 +162,22 @@ def chapter_segments(chapter_id: uuid.UUID, limit: int = 200, offset: int = 0, f
     for flag in session.scalars(select(QAFlag).where(
             QAFlag.segment_id.in_([seg.id for seg, *_ in rows]), ~QAFlag.resolved)):
         flags.setdefault(flag.segment_id, []).append(
-            {"check": flag.check_name, "severity": flag.severity, "message": flag.message})
+            {"id": str(flag.id), "check": flag.check_name, "severity": flag.severity, "message": flag.message})
     counts = dict(session.execute(
         select(Segment.status, func.count()).where(Segment.chapter_id == chapter_id, Segment.translatable)
         .group_by(Segment.status)).all())
+    total_query = select(func.count()).select_from(Segment).where(Segment.chapter_id == chapter_id)
+    if flagged_only:
+        total_query = total_query.where(Segment.status == "flagged")
+    total = session.scalar(total_query)
     return {
         "chapter": {"id": str(chapter.id), "title": chapter.title, "status": chapter.status},
-        "counts": counts,
+        "counts": counts, "total": total, "offset": max(offset, 0),
         "segments": [{"id": str(seg.id), "kind": kind, "page": page, "status": seg.status,
                       "translatable": seg.translatable, "source": seg.source_text, "translation": text,
-                      "translated_by": model, "flags": flags.get(seg.id, [])}
-                     for seg, kind, page, text, model in rows],
+                      "translated_by": model, "version_id": str(version_id) if version_id else None,
+                      "flags": flags.get(seg.id, [])}
+                     for seg, kind, page, text, model, version_id in rows],
     }
 
 

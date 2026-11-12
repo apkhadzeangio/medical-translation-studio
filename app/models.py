@@ -31,14 +31,14 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 DOCUMENT_FORMATS = ("pdf", "docx")
 DOCUMENT_STATUSES = ("uploaded", "parsing", "parsed", "failed")
-CHAPTER_STATUSES = ("pending", "translating", "reviewing", "qa", "done", "failed")
+CHAPTER_STATUSES = ("pending", "translating", "reviewing", "refining", "qa", "done", "failed")
 BLOCK_TYPES = (
     "heading", "paragraph", "list_item", "list", "table", "figure", "caption", "footnote", "reference",
     "callout", "equation", "other",
 )
 ASSET_KINDS = ("figure", "table_image", "page_image")
 SEGMENT_STATUSES = ("pending", "translated", "reviewed", "flagged", "approved")
-VERSION_STAGES = ("translate", "review", "qa_fix", "human")
+VERSION_STAGES = ("translate", "review", "refine", "qa_fix", "human")
 JOB_STATUSES = ("queued", "running", "done", "failed", "cancelled")
 QA_SEVERITIES = ("critical", "major", "minor")
 
@@ -165,6 +165,7 @@ class Segment(Base):
     source_hash: Mapped[str] = mapped_column(String(64))
     translatable: Mapped[bool] = mapped_column(Boolean, server_default=sa_text("true"))
     review_done: Mapped[bool] = mapped_column(Boolean, server_default=sa_text("false"))
+    refine_done: Mapped[bool] = mapped_column(Boolean, server_default=sa_text("false"))
     qa_done: Mapped[bool] = mapped_column(Boolean, server_default=sa_text("false"))
     status: Mapped[str] = mapped_column(String(16), server_default="pending")
 
@@ -181,6 +182,7 @@ class LLMCall(Base):
     stage: Mapped[str] = mapped_column(String(32))
     provider: Mapped[str] = mapped_column(String(64))
     model: Mapped[str] = mapped_column(String(100))
+    prompt_version: Mapped[str | None] = mapped_column(String(64))
     key_label: Mapped[str | None] = mapped_column(String(64))  # never the key itself
     input_tokens: Mapped[int] = mapped_column(Integer, server_default="0")
     cached_tokens: Mapped[int] = mapped_column(Integer, server_default="0")
@@ -230,6 +232,9 @@ class QAFlag(Base):
     severity: Mapped[str] = mapped_column(String(16))
     message: Mapped[str] = mapped_column(Text)
     resolved: Mapped[bool] = mapped_column(Boolean, server_default=sa_text("false"))
+    resolution_note: Mapped[str | None] = mapped_column(Text)
+    resolved_by: Mapped[str | None] = mapped_column(String(100))
+    resolved_at: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = _created()
 
 
