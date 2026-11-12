@@ -22,10 +22,11 @@ from app.models import Block, Chapter, Document, Job, QAFlag, Segment, SegmentVe
 from app.pipeline.checks import check_segment
 from app.terminology import GlossaryIndex, load_index, tm_add, tm_lookup
 
-# Rough planning figures until the ledger has real numbers for this model and language.
-INPUT_TOKENS_PER_WORD = 1.5
-OUTPUT_TOKENS_PER_WORD = 5.0
-PROMPT_OVERHEAD_TOKENS = 700
+# Planning figures per English source word, measured on the first real run (gpt-6-astra,
+# 1,879 words, 2026-11-12): translation 4.7 input / 3.9 output tokens, review 8.3 / 0.5.
+# One chapter is a small sample; the console shows the real spend as it happens.
+TRANSLATE_TOKENS_PER_WORD = (4.7, 3.9)
+REVIEW_TOKENS_PER_WORD = (8.3, 0.5)
 
 SYSTEM = """You are a senior medical translator and a vascular surgeon. You translate an English \
 medical textbook into Georgian, in the formal academic register of Georgian medical literature.
@@ -85,8 +86,8 @@ def plan_chapter(session: Session, chapter_id: uuid.UUID, *, max_words: int | No
         chapter.status = "translating"
     words = sum(c.words for c in chunks)
     price = get_gateway(session).prices.get(get_settings().llm_model) or {}
-    tokens_in = words * INPUT_TOKENS_PER_WORD + len(chunks) * PROMPT_OVERHEAD_TOKENS
-    tokens_out = words * OUTPUT_TOKENS_PER_WORD
+    tokens_in = words * (TRANSLATE_TOKENS_PER_WORD[0] + REVIEW_TOKENS_PER_WORD[0])
+    tokens_out = words * (TRANSLATE_TOKENS_PER_WORD[1] + REVIEW_TOKENS_PER_WORD[1])
     estimate = (tokens_in * price.get("input", 0) + tokens_out * price.get("output", 0)) / 1e6
     return {"chapter_id": str(chapter_id), "chunks": len(chunks), "jobs_queued": queued, "words": words,
             "estimated_cost_usd": round(estimate, 2), "estimate_is_rough": True}

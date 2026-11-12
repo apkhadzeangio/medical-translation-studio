@@ -4,7 +4,7 @@ Automated translation of English medical textbooks into Georgian: PDF-first inge
 multi-stage LLM pipeline (translate → medical review → QA), glossary and translation
 memory, cost control, bilingual DOCX/PDF export.
 
-Status: **PR-11 — ready to deploy.** Console, pipeline and export work end to end against a stand-in model; a real model has not been called yet.
+Status: **live on Railway.** First real run (2026-11-12, gpt-6-astra): a 1,879-word chapter translated and reviewed in about 2 minutes for $0.65, i.e. about $0.35 per 1,000 source words without the QA stage.
 The earlier one-file pilot lives in `tools/spike/`.
 
 ## Local development
