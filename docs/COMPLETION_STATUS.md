@@ -46,10 +46,13 @@ requires `alembic upgrade head` before the new process starts; Railway already h
 pre-deploy command. Back up the database and `/data` volume before a production migration.
 
 GluAPI's public site advertises the OpenAI-compatible base URL `https://api.gluapi.com/v1`.
-A model-discovery request from the development environment returned HTTP 403 with
-`error code: 1010`. Credential validity, available models, usage accounting, quota and actual
-GluAPI charges remain unverified. No paid translation was attempted and no supplied key is
-stored in this repository. Resolve the provider's access restriction before a live pilot.
+A first model-discovery probe using Python `urllib` returned HTTP 403 / Cloudflare 1010.
+Using the application's actual `httpx` client, authenticated model discovery succeeds and
+advertises `gpt-6-astra`. A single bounded generation request through `LLMGateway` then
+returned **HTTP 503: `No available accounts: no available accounts`**. The generation
+failure is a separate provider-side account-selection problem; model-list success alone
+does not establish generation readiness. See [the diagnosis](GLUAPI_DIAGNOSTICS.md).
+No translation was produced and no supplied key is stored in this repository.
 The existing OpenAI token-price configuration does not establish GluAPI's package pricing.
 
 `LLM_REFINE_MODEL` and `LLM_QA_MODEL` must be configured with verified model identifiers to
